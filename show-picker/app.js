@@ -3,7 +3,7 @@ const STORAGE_KEY = "marqueeNight.state";
 const COLORS = ["#f4b400", "#3ecac2", "#e2574c", "#8b7fd6", "#f2a154", "#5fb3e0", "#d1c65c", "#c77dd1"];
 
 const state = loadState();
-let activeCategory = "movies";
+let activeCategory = "tv";
 let currentAngle = 0;
 let spinning = false;
 
@@ -16,8 +16,12 @@ const addForm = document.getElementById("addForm");
 const addInput = document.getElementById("addInput");
 const resultModal = document.getElementById("resultModal");
 const resultName = document.getElementById("resultName");
-const markWatchedBtn = document.getElementById("markWatched");
-const keepItBtn = document.getElementById("keepIt");
+const modalActions = document.getElementById("modalActions");
+const wheelView = document.getElementById("wheelView");
+const historyView = document.getElementById("historyView");
+const tvHistory = document.getElementById("tvHistory");
+const movieHistory = document.getElementById("movieHistory");
+const historyEmpty = document.getElementById("historyEmpty");
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -33,6 +37,21 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+document.querySelectorAll(".view-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".view-tab").forEach((t) => {
+      t.classList.remove("active");
+      t.setAttribute("aria-selected", "false");
+    });
+    tab.classList.add("active");
+    tab.setAttribute("aria-selected", "true");
+    const view = tab.dataset.view;
+    wheelView.classList.toggle("hidden", view !== "wheel");
+    historyView.classList.toggle("hidden", view !== "history");
+    if (view === "history") renderHistory();
+  });
+});
+
 addForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const value = addInput.value.trim();
@@ -45,16 +64,6 @@ addForm.addEventListener("submit", (e) => {
 
 spinBtn.addEventListener("click", spin);
 
-markWatchedBtn.addEventListener("click", () => {
-  const { index } = resultModal.dataset;
-  state[activeCategory].splice(Number(index), 1);
-  saveState();
-  closeModal();
-  render();
-});
-
-keepItBtn.addEventListener("click", closeModal);
-
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -62,15 +71,21 @@ function loadState() {
   } catch (e) {
     /* corrupt or unavailable storage, fall back to defaults */
   }
-  return { movies: [], tv: [] };
+  return { movies: [], tv: [], history: [] };
 }
 
 function saveState() {
+  if (!state.history) state.history = [];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function currentItems() {
   return state[activeCategory];
+}
+
+function logHistory(title, category, event) {
+  state.history.push({ title, category, event, at: new Date().toISOString() });
+  saveState();
 }
 
 function render() {
@@ -195,14 +210,144 @@ function spin() {
   requestAnimationFrame(frame);
 }
 
-function showResult(name, index) {
-  resultName.textContent = name;
+function showResult(title, index) {
+  resultName.textContent = title;
   resultModal.dataset.index = index;
+  resultModal.dataset.title = title;
+  buildModalActions(title, index);
   resultModal.classList.remove("hidden");
+}
+
+function buildModalActions(title, index) {
+  modalActions.innerHTML = "";
+
+  if (activeCategory === "movies") {
+    modalActions.appendChild(makeButton("✓ Watched — tear the stub", "btn-primary", () => {
+      logHistory(title, "movies", "watched");
+      state.movies.splice(index, 1);
+      saveState();
+      closeModal();
+      render();
+    }));
+  } else {
+    modalActions.appendChild(makeButton("✓ Watched this one — keep in rotation", "btn-primary", () => {
+      logHistory(title, "tv", "watched");
+      closeModal();
+      render();
+    }));
+    modalActions.appendChild(makeButton("🏁 Finished the series — remove it", "btn-tertiary", () => {
+      logHistory(title, "tv", "finished");
+      state.tv.splice(index, 1);
+      saveState();
+      closeModal();
+      render();
+    }));
+  }
+
+  modalActions.appendChild(makeButton("Keep it, spin again later", "btn-secondary", closeModal));
+}
+
+function makeButton(label, className, onClick) {
+  const btn = document.createElement("button");
+  btn.textContent = label;
+  btn.className = className;
+  btn.addEventListener("click", onClick);
+  return btn;
 }
 
 function closeModal() {
   resultModal.classList.add("hidden");
+}
+
+function renderHistory() {
+  const history = state.history || [];
+  const tvEntries = history.filter((h) => h.category === "tv");
+  const movieEntries = history.filter((h) => h.category === "movies");
+
+  historyEmpty.classList.toggle("hidden", history.length > 0);
+  tvHistory.parentElement.classList.toggle("hidden", tvEntries.length === 0);
+  movieHistory.parentElement.classList.toggle("hidden", movieEntries.length === 0);
+
+  tvHistory.innerHTML = "";
+  groupByTitle(tvEntries).forEach(({ title, entries }) => {
+    tvHistory.appendChild(renderHistoryCard(title, entries, "tv", state.tv.includes(title)));
+  });
+
+  movieHistory.innerHTML = "";
+  groupByTitle(movieEntries).forEach(({ title, entries }) => {
+    movieHistory.appendChild(renderHistoryCard(title, entries, "movies", false));
+  });
+}
+
+function groupByTitle(entries) {
+  const map = new Map();
+  entries.forEach((e) => {
+    if (!map.has(e.title)) map.set(e.title, []);
+    map.get(e.title).push(e);
+  });
+  return [...map.entries()]
+    .map(([title, entries]) => ({
+      title,
+      entries: entries.slice().sort((a, b) => new Date(b.at) - new Date(a.at)),
+    }))
+    .sort((a, b) => new Date(b.entries[0].at) - new Date(a.entries[0].at));
+}
+
+function renderHistoryCard(title, entries, category, stillInRotation) {
+  const card = document.createElement("div");
+  card.className = "history-card";
+
+  const head = document.createElement("div");
+  head.className = "history-card-head";
+
+  const name = document.createElement("span");
+  name.className = "history-title";
+  name.textContent = title;
+
+  const status = document.createElement("span");
+  const finished = entries.some((e) => e.event === "finished");
+  let statusText, statusClass;
+  if (category === "movies") {
+    statusText = "Watched";
+    statusClass = " finished";
+  } else if (finished) {
+    statusText = "Finished";
+    statusClass = " finished";
+  } else if (stillInRotation) {
+    statusText = "In rotation";
+    statusClass = " active";
+  } else {
+    statusText = "Removed";
+    statusClass = "";
+  }
+  status.className = "history-status" + statusClass;
+  status.textContent = statusText;
+
+  head.appendChild(name);
+  head.appendChild(status);
+
+  const count = document.createElement("span");
+  count.className = "history-count";
+  count.textContent = entries.length === 1 ? "Watched once" : `Watched ${entries.length} times`;
+
+  const dates = document.createElement("ul");
+  dates.className = "history-dates";
+  entries.forEach((e) => {
+    const li = document.createElement("li");
+    li.textContent = formatDate(e.at);
+    dates.appendChild(li);
+  });
+
+  card.appendChild(head);
+  card.appendChild(count);
+  card.appendChild(dates);
+  return card;
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) +
+    " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 render();

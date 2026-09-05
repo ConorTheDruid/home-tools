@@ -17,40 +17,56 @@
       <h1>Marquee Night</h1>
     </header>
 
-    <div class="tabs" role="tablist">
-      <button class="tab active" data-cat="movies" role="tab" aria-selected="true">Movies</button>
-      <button class="tab" data-cat="tv" role="tab" aria-selected="false">TV Shows</button>
+    <div class="view-switch" role="tablist">
+      <button class="view-tab active" data-view="wheel" role="tab" aria-selected="true">Wheel</button>
+      <button class="view-tab" data-view="history" role="tab" aria-selected="false">History</button>
     </div>
 
-    <div class="main">
-      <div class="wheel-wrap">
-        <div class="pointer" aria-hidden="true"></div>
-        <canvas id="wheel" width="420" height="420"></canvas>
-        <p id="emptyMsg" class="empty-msg hidden">Add a title below to spin the wheel.</p>
+    <section id="wheelView" class="view">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-cat="tv" role="tab" aria-selected="true">TV Shows</button>
+        <button class="tab" data-cat="movies" role="tab" aria-selected="false">Movies</button>
       </div>
-      <button id="spinBtn" class="spin-btn">Spin the wheel</button>
-    </div>
 
-    <div class="ticket">
-      <div class="ticket-tear" aria-hidden="true"></div>
-      <div class="ticket-body">
-        <form id="addForm" class="add-form">
-          <input id="addInput" type="text" placeholder="Add a title…" autocomplete="off" />
-          <button type="submit">Add</button>
-        </form>
-        <ul id="itemList" class="item-list"></ul>
+      <div class="main">
+        <div class="wheel-wrap">
+          <div class="pointer" aria-hidden="true"></div>
+          <canvas id="wheel" width="420" height="420"></canvas>
+          <p id="emptyMsg" class="empty-msg hidden">Add a title below to spin the wheel.</p>
+        </div>
+        <button id="spinBtn" class="spin-btn">Spin the wheel</button>
       </div>
-    </div>
+
+      <div class="ticket">
+        <div class="ticket-tear" aria-hidden="true"></div>
+        <div class="ticket-body">
+          <form id="addForm" class="add-form">
+            <input id="addInput" type="text" placeholder="Add a title…" autocomplete="off" />
+            <button type="submit">Add</button>
+          </form>
+          <ul id="itemList" class="item-list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="historyView" class="view hidden">
+      <div class="history-group">
+        <h2 class="history-heading">TV Shows</h2>
+        <div id="tvHistory" class="history-cards"></div>
+      </div>
+      <div class="history-group">
+        <h2 class="history-heading">Movies</h2>
+        <div id="movieHistory" class="history-cards"></div>
+      </div>
+      <p id="historyEmpty" class="empty-list hidden">Nothing watched yet — spin the wheel and mark something watched to start your history.</p>
+    </section>
   </div>
 
   <div id="resultModal" class="modal hidden">
     <div class="modal-content">
       <p class="modal-label">Tonight's showing</p>
       <h2 id="resultName"></h2>
-      <div class="modal-actions">
-        <button id="markWatched" class="btn-primary">✓ Watched — tear the stub</button>
-        <button id="keepIt" class="btn-secondary">Keep it, spin again later</button>
-      </div>
+      <div id="modalActions" class="modal-actions"></div>
     </div>
   </div>
 

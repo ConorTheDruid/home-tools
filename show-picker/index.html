@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Marquee Night</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="reel-strip" aria-hidden="true"></div>
+
+  <div class="app">
+    <header>
+      <span class="eyebrow">Two seats, one screen</span>
+      <h1>Marquee Night</h1>
+    </header>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-cat="movies" role="tab" aria-selected="true">Movies</button>
+      <button class="tab" data-cat="tv" role="tab" aria-selected="false">TV Shows</button>
+    </div>
+
+    <div class="main">
+      <div class="wheel-wrap">
+        <div class="pointer" aria-hidden="true"></div>
+        <canvas id="wheel" width="420" height="420"></canvas>
+        <p id="emptyMsg" class="empty-msg hidden">Add a title below to spin the wheel.</p>
+      </div>
+      <button id="spinBtn" class="spin-btn">Spin the wheel</button>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-tear" aria-hidden="true"></div>
+      <div class="ticket-body">
+        <form id="addForm" class="add-form">
+          <input id="addInput" type="text" placeholder="Add a title…" autocomplete="off" />
+          <button type="submit">Add</button>
+        </form>
+        <ul id="itemList" class="item-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultModal" class="modal hidden">
+    <div class="modal-content">
+      <p class="modal-label">Tonight's showing</p>
+      <h2 id="resultName"></h2>
+      <div class="modal-actions">
+        <button id="markWatched" class="btn-primary">✓ Watched — tear the stub</button>
+        <button id="keepIt" class="btn-secondary">Keep it, spin again later</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

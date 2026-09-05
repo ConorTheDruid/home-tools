@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Home Tools</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
+<style>
+  :root {
+    --bg: #121214;
+    --panel: #1b1b1f;
+    --ink: #f1f0ec;
+    --muted: #96959e;
+    --border: #2c2c32;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f3ee;
+      --panel: #ffffff;
+      --ink: #17171a;
+      --muted: #6b6a72;
+      --border: #e1dfd6;
+    }
+  }
+
+  :root[data-theme="light"] {
+    --bg: #f4f3ee;
+    --panel: #ffffff;
+    --ink: #17171a;
+    --muted: #6b6a72;
+    --border: #e1dfd6;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 48px 20px 64px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+
+  header { text-align: center; display: flex; flex-direction: column; gap: 6px; }
+
+  .eyebrow {
+    font-weight: 800;
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    font-weight: 800;
+    font-size: 1.9rem;
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  .cards { display: flex; flex-direction: column; gap: 14px; }
+
+  a.card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 14px;
+    padding: 18px 18px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+
+  a.card:hover { transform: translateY(-2px); }
+  a.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .card-icon {
+    font-size: 1.6rem;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-soft);
+  }
+
+  .card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+  .card-name { font-weight: 800; font-size: 1.08rem; }
+  .card-desc { color: var(--muted); font-size: 0.86rem; line-height: 1.4; }
+
+  .card-arrow { margin-left: auto; color: var(--muted); font-size: 1.2rem; flex-shrink: 0; }
+
+  #marquee { --accent: #f4b400; --accent-soft: #3a2e08; }
+  #daily { --accent: #3c7a4c; --accent-soft: #16321f; }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) #marquee { --accent-soft: #fbf0cf; }
+    :root:not([data-theme="dark"]) #daily { --accent-soft: #e4efe2; }
+  }
+  :root[data-theme="light"] #marquee { --accent-soft: #fbf0cf; }
+  :root[data-theme="light"] #daily { --accent-soft: #e4efe2; }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+</style>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="eyebrow">Just the two of us</span>
+      <h1>Home Tools</h1>
+    </header>
+
+    <div class="cards">
+      <a id="marquee" class="card" href="show-picker/">
+        <span class="card-icon">🎬</span>
+        <span class="card-body">
+          <span class="card-name">Marquee Night</span>
+          <span class="card-desc">Spin the wheel to pick tonight's movie or show.</span>
+        </span>
+        <span class="card-arrow">→</span>
+      </a>
+
+      <a id="daily" class="card" href="calorie-tracker/">
+        <span class="card-icon">🍽️</span>
+        <span class="card-body">
+          <span class="card-name">Daily Values</span>
+          <span class="card-desc">Log what you ate and see the day's totals.</span>
+        </span>
+        <span class="card-arrow">→</span>
+      </a>
+    </div>
+
+    <footer>home-tools</footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Daily Values</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Manrope:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="page-head">
+      <span class="eyebrow">Logged for two</span>
+      <h1>Daily Values</h1>
+    </header>
+
+    <section class="label-card" aria-label="Nutrition summary">
+      <div class="label-top">
+        <button id="prevDay" class="day-nav" aria-label="Previous day">‹</button>
+        <div class="day-display">
+          <span class="label-title">Nutrition Facts</span>
+          <span id="dateReadout" class="date-readout">—</span>
+        </div>
+        <button id="nextDay" class="day-nav" aria-label="Next day">›</button>
+      </div>
+
+      <div class="rule thick"></div>
+
+      <div class="calorie-row">
+        <span class="calorie-label">Calories</span>
+        <span id="calorieValue" class="calorie-value">0</span>
+      </div>
+
+      <div class="rule thick"></div>
+
+      <div id="macroRows" class="macro-rows"></div>
+
+      <p id="emptyDay" class="empty-day hidden">Nothing logged this day.</p>
+    </section>
+
+    <section class="entries-card">
+      <div class="entries-head">
+        <h2>Entries</h2>
+        <span id="entryCount" class="entry-count">0</span>
+      </div>
+      <ul id="entryList" class="entry-list"></ul>
+    </section>
+
+    <section class="add-card">
+      <h2>Log something</h2>
+      <form id="addForm" class="add-form">
+        <input id="descInput" type="text" placeholder="What did you eat?" autocomplete="off" required />
+        <div class="macro-grid">
+          <label>Calories<input id="calInput" type="number" min="0" step="1" required /></label>
+          <label>Protein (g)<input id="proteinInput" type="number" min="0" step="0.1" /></label>
+          <label>Carbs (g)<input id="carbsInput" type="number" min="0" step="0.1" /></label>
+          <label>Fat (g)<input id="fatInput" type="number" min="0" step="0.1" /></label>
+          <label>Fiber (g)<input id="fiberInput" type="number" min="0" step="0.1" /></label>
+          <label>Sugar (g)<input id="sugarInput" type="number" min="0" step="0.1" /></label>
+          <label>Sodium (mg)<input id="sodiumInput" type="number" min="0" step="1" /></label>
+        </div>
+        <button type="submit" class="add-btn">Add to today</button>
+      </form>
+    </section>
+
+    <p class="footnote">
+      History before this app existed is imported from <code>calorie-tracker/data/log.csv</code> and shown for reference — remove it from view here if it clutters things, it won't touch the original file. Everything you add here lives in this browser only.
+    </p>
+  </main>
+
+  <script src="history.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -85,6 +85,47 @@ h2 {
   text-transform: uppercase;
 }
 
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.week-day {
+  aspect-ratio: 1 / 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 2px;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: "Manrope", sans-serif;
+}
+.week-day:hover { border-color: var(--accent); }
+.week-day.selected { border-color: var(--accent); background: var(--accent-soft); }
+
+.week-day .wd-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.week-day.selected .wd-label { color: var(--accent); }
+
+.week-day .wd-cal {
+  font-weight: 800;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.1;
+}
+
 .label-card {
   background: var(--panel);
   border: 3px solid var(--rule);

@@ -170,14 +170,18 @@ function truncate(text, max) {
   return text.length > max ? text.slice(0, max - 1) + "…" : text;
 }
 
-function spin() {
+function spin(excludeTitle) {
   const items = currentItems();
   if (items.length === 0 || spinning) return;
 
   spinning = true;
   spinBtn.disabled = true;
 
-  const winnerIndex = Math.floor(Math.random() * items.length);
+  let eligible = items.map((_, i) => i);
+  if (excludeTitle && items.length > 1) {
+    eligible = eligible.filter((i) => items[i] !== excludeTitle);
+  }
+  const winnerIndex = eligible[Math.floor(Math.random() * eligible.length)];
   const sliceAngle = 360 / items.length;
   const winnerMidAngle = sliceAngle * winnerIndex + sliceAngle / 2;
   const pointerAngle = 270; // top of the wheel, in canvas-angle terms
@@ -220,31 +224,26 @@ function showResult(title, index) {
 
 function buildModalActions(title, index) {
   modalActions.innerHTML = "";
+  const category = activeCategory;
 
-  if (activeCategory === "movies") {
-    modalActions.appendChild(makeButton("✓ Watched — tear the stub", "btn-primary", () => {
-      logHistory(title, "movies", "watched");
-      state.movies.splice(index, 1);
-      saveState();
-      closeModal();
-      render();
-    }));
-  } else {
-    modalActions.appendChild(makeButton("✓ Watched this one — keep in rotation", "btn-primary", () => {
-      logHistory(title, "tv", "watched");
-      closeModal();
-      render();
-    }));
-    modalActions.appendChild(makeButton("🏁 Finished the series — remove it", "btn-tertiary", () => {
-      logHistory(title, "tv", "finished");
-      state.tv.splice(index, 1);
-      saveState();
-      closeModal();
-      render();
-    }));
-  }
+  modalActions.appendChild(makeButton("✓ Confirm — log it for tonight", "btn-confirm", () => {
+    logHistory(title, category, "watched");
+    closeModal();
+    render();
+  }));
 
-  modalActions.appendChild(makeButton("Keep it, spin again later", "btn-secondary", closeModal));
+  modalActions.appendChild(makeButton("↻ Not tonight — reroll", "btn-reject", () => {
+    closeModal();
+    spin(title);
+  }));
+
+  modalActions.appendChild(makeButton("🏁 Finished — remove it", "btn-finished", () => {
+    logHistory(title, category, "finished");
+    state[category].splice(index, 1);
+    saveState();
+    closeModal();
+    render();
+  }));
 }
 
 function makeButton(label, className, onClick) {
@@ -270,12 +269,12 @@ function renderHistory() {
 
   tvHistory.innerHTML = "";
   groupByTitle(tvEntries).forEach(({ title, entries }) => {
-    tvHistory.appendChild(renderHistoryCard(title, entries, "tv", state.tv.includes(title)));
+    tvHistory.appendChild(renderHistoryCard(title, entries, state.tv.includes(title)));
   });
 
   movieHistory.innerHTML = "";
   groupByTitle(movieEntries).forEach(({ title, entries }) => {
-    movieHistory.appendChild(renderHistoryCard(title, entries, "movies", false));
+    movieHistory.appendChild(renderHistoryCard(title, entries, state.movies.includes(title)));
   });
 }
 
@@ -293,7 +292,7 @@ function groupByTitle(entries) {
     .sort((a, b) => new Date(b.entries[0].at) - new Date(a.entries[0].at));
 }
 
-function renderHistoryCard(title, entries, category, stillInRotation) {
+function renderHistoryCard(title, entries, stillInRotation) {
   const card = document.createElement("div");
   card.className = "history-card";
 
@@ -307,10 +306,7 @@ function renderHistoryCard(title, entries, category, stillInRotation) {
   const status = document.createElement("span");
   const finished = entries.some((e) => e.event === "finished");
   let statusText, statusClass;
-  if (category === "movies") {
-    statusText = "Watched";
-    statusClass = " finished";
-  } else if (finished) {
+  if (finished) {
     statusText = "Finished";
     statusClass = " finished";
   } else if (stillInRotation) {

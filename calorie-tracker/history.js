@@ -684,5 +684,19 @@ const HISTORICAL_ENTRIES = [
     "sodium_mg": 5.0,
     "confidence": "medium",
     "notes": "Snack; count approximate"
+  },
+  {
+    "date": "2026-09-05",
+    "time": "21:00",
+    "description": "Kroger Mint Chocolate Chip Ice Cream, 2 scoops",
+    "calories": 300.0,
+    "protein_g": 4.0,
+    "carbs_g": 34.0,
+    "fat_g": 16.0,
+    "fiber_g": 1.0,
+    "sugar_g": 28.0,
+    "sodium_mg": 90.0,
+    "confidence": "medium",
+    "notes": "Dessert; scoop size assumed ~1/2 cup each"
   }
 ];

@@ -23,6 +23,7 @@ const entryCount = document.getElementById("entryCount");
 const prevDayBtn = document.getElementById("prevDay");
 const nextDayBtn = document.getElementById("nextDay");
 const addForm = document.getElementById("addForm");
+const weekStrip = document.getElementById("weekStrip");
 
 prevDayBtn.addEventListener("click", () => shiftDay(-1));
 nextDayBtn.addEventListener("click", () => shiftDay(1));
@@ -100,11 +101,21 @@ function hiddenSet() {
   return new Set(state.hiddenImportedIds);
 }
 
-function entriesForCurrentDate() {
+function entriesForDate(date) {
   const hidden = hiddenSet();
-  const imported = importedEntries.filter((e) => e.date === currentDate && !hidden.has(e.id));
-  const logged = state.entries.filter((e) => e.date === currentDate);
+  const imported = importedEntries.filter((e) => e.date === date && !hidden.has(e.id));
+  const logged = state.entries.filter((e) => e.date === date);
   return [...imported, ...logged].sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+}
+
+function entriesForCurrentDate() {
+  return entriesForDate(currentDate);
+}
+
+function addDays(dateStr, delta) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function removeEntry(entry) {
@@ -117,7 +128,38 @@ function removeEntry(entry) {
   render();
 }
 
+function renderWeekStrip() {
+  const today = todayString();
+  weekStrip.innerHTML = "";
+  for (let i = 6; i >= 0; i--) {
+    const date = addDays(today, -i);
+    const total = entriesForDate(date).reduce((sum, e) => sum + (e.calories || 0), 0);
+
+    const tile = document.createElement("div");
+    tile.className = "week-day" + (date === currentDate ? " selected" : "");
+    tile.setAttribute("role", "button");
+    tile.setAttribute("tabindex", "0");
+
+    const label = document.createElement("span");
+    label.className = "wd-label";
+    label.textContent = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
+
+    const cal = document.createElement("span");
+    cal.className = "wd-cal";
+    cal.textContent = Math.round(total).toLocaleString();
+
+    tile.appendChild(label);
+    tile.appendChild(cal);
+    tile.addEventListener("click", () => { currentDate = date; render(); });
+    tile.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); currentDate = date; render(); }
+    });
+    weekStrip.appendChild(tile);
+  }
+}
+
 function render() {
+  renderWeekStrip();
   const entries = entriesForCurrentDate();
 
   const dateObj = new Date(`${currentDate}T00:00:00`);

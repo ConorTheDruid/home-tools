@@ -165,8 +165,12 @@ async function loadVersionFooter() {
     const when = new Date(commit.commit.committer.date).toLocaleString(undefined, {
       month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
     });
+    const subject = commit.commit.message.split("\n")[0];
+    const escapedSubject = subject.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
     versionFooter.innerHTML =
-      `<a href="https://github.com/ConorTheDruid/home-tools/commit/${commit.sha}" target="_blank" rel="noopener">v${sha}</a> · ${when}`;
+      `<a href="https://github.com/ConorTheDruid/home-tools/commit/${commit.sha}" target="_blank" rel="noopener">v${sha}</a> · ${when} · ${escapedSubject}`;
   } catch (err) {
     console.error("Couldn't load version footer", err);
     versionFooter.textContent = "version unavailable";
@@ -607,15 +611,41 @@ function drawWheel(angleDeg, sparkleTime) {
       ctx.fill();
     }
     ctx.restore();
+  });
+
+  // Thick spoke dividers between wedges, drawn over the fills/cover art so
+  // adjacent posters read as distinct slices instead of blurring together.
+  drawWedgeDividers(layout, radius);
+
+  items.forEach((item, i) => {
+    const { start, end } = layout[i];
+    const poster = item.poster_path ? getPosterImage(item.poster_path) : null;
+    const posterReady = !!poster && poster.complete && poster.naturalWidth > 0;
 
     ctx.save();
     ctx.rotate((start + end) / 2);
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = posterReady ? "#f5ecd9" : "#1a1220";
     ctx.font = "700 15px Manrope, sans-serif";
     const label = truncate(item.title, 20);
-    ctx.fillText(label, radius - 14, 0);
+    const textX = radius - 14;
+
+    // Cover art makes the wheel busy under the title, so give the label a
+    // dark pill to sit on. Flat-color wedges already contrast fine with
+    // their dark ink, so they don't need one.
+    if (posterReady) {
+      const metrics = ctx.measureText(label);
+      const padX = 10;
+      const padY = 5;
+      const pillHeight = 15 + padY * 2;
+      const pillWidth = metrics.width + padX * 2;
+      ctx.fillStyle = "rgba(10, 6, 14, 0.72)";
+      drawRoundedRect(textX - pillWidth + padX, -pillHeight / 2, pillWidth, pillHeight, pillHeight / 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = posterReady ? "#f5ecd9" : "#1a1220";
+    ctx.fillText(label, textX, 0);
     ctx.restore();
   });
 
@@ -623,6 +653,33 @@ function drawWheel(angleDeg, sparkleTime) {
     drawNewcomerEffects(items, layout, radius, sparkleTime);
   }
 
+  ctx.restore();
+}
+
+// Rounded-rect path in the current (already translated/rotated) canvas
+// space — used for the label pill background.
+function drawRoundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// One thick radial line per wedge boundary, from hub to rim.
+function drawWedgeDividers(layout, radius) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(8, 5, 11, 0.85)";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  layout.forEach(({ start }) => {
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(radius * Math.cos(start), radius * Math.sin(start));
+    ctx.stroke();
+  });
   ctx.restore();
 }
 
@@ -637,13 +694,24 @@ function drawNewcomerEffects(items, layout, radius, t) {
 
     const pulse = 0.5 + 0.5 * Math.sin(t / 450);
     ctx.save();
-    ctx.strokeStyle = "rgba(255, 240, 190, 0.95)";
-    ctx.lineWidth = 3;
-    ctx.shadowColor = "rgba(255, 205, 80, 0.95)";
-    ctx.shadowBlur = 12 + pulse * 14;
+    ctx.strokeStyle = "rgba(255, 240, 190, 1)";
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = "round";
+    ctx.shadowColor = "rgba(255, 205, 80, 1)";
+    ctx.shadowBlur = 18 + pulse * 21;
     ctx.beginPath();
     ctx.arc(0, 0, radius - 2, start, end);
     ctx.stroke();
+
+    // The two edges connecting the wedge to the hub glow the same way as
+    // the rim, so the whole wedge — busier now with cover art — reads as
+    // "new" at a glance rather than just its outer arc.
+    [start, end].forEach((angle) => {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo((radius - 2) * Math.cos(angle), (radius - 2) * Math.sin(angle));
+      ctx.stroke();
+    });
     ctx.restore();
 
     const particleCount = 5;
@@ -652,9 +720,9 @@ function drawNewcomerEffects(items, layout, radius, t) {
       const angle = start + (end - start) * ((p + 0.5) / particleCount);
       const wobble = Math.sin(t / 600 + phase) * 8;
       const r = radius - 18 + wobble;
-      const alpha = 0.35 + 0.35 * Math.sin(t / 500 + phase * 2);
+      const alpha = 0.525 + 0.525 * Math.sin(t / 500 + phase * 2);
       ctx.beginPath();
-      ctx.fillStyle = `rgba(255, 236, 179, ${Math.max(0, alpha)})`;
+      ctx.fillStyle = `rgba(255, 236, 179, ${Math.max(0, Math.min(1, alpha))})`;
       ctx.arc(Math.cos(angle) * r, Math.sin(angle) * r, 2.2, 0, Math.PI * 2);
       ctx.fill();
     }

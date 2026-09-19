@@ -703,10 +703,17 @@ function renderHistoryCard(title, entries, stillInRotation) {
   return card;
 }
 
-function formatDate(iso) {
+// A pick logged before 6am still belongs to the night before in our heads
+// (a 1am Sunday episode is "Saturday night"), so history dates are shown
+// by this "mental day" rather than the literal calendar date.
+function mentalDate(iso) {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) +
-    " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (d.getHours() < 6) d.setDate(d.getDate() - 1);
+  return d;
+}
+
+function formatDate(iso) {
+  return mentalDate(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
 function subscribeRealtime() {

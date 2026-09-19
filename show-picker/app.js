@@ -68,19 +68,24 @@ addForm.addEventListener("submit", async (e) => {
   if (!value) return;
   addInput.value = "";
 
-  // Newcomer bonus: a new title starts at double the category's average
-  // weight, so it gets a real shot early on against established shows —
-  // and even after its first pick halves it, it lands back around
-  // average instead of starting out behind.
+  // Newcomer bonus (TV only): a new show starts at double the category's
+  // average weight, so it gets a real shot early on against established
+  // shows — and even after its first pick halves it, it lands back
+  // around average instead of starting out behind. Movies skip this
+  // entirely: a movie is normally confirmed once and immediately
+  // finished, so it would never actually lose the "newcomer" glow —
+  // every movie would just look new forever.
   const items = currentItems();
-  const weight = items.length
-    ? 2 * (items.reduce((sum, it) => sum + it.weight, 0) / items.length)
+  const isTv = activeCategory === "tv";
+  const avgWeight = items.length
+    ? items.reduce((sum, it) => sum + it.weight, 0) / items.length
     : DEFAULT_WEIGHT;
+  const weight = isTv && items.length ? 2 * avgWeight : avgWeight;
 
   try {
     const { data, error } = await sb
       .from("hometools_shows")
-      .insert({ category: activeCategory, title: value, weight })
+      .insert({ category: activeCategory, title: value, weight, is_newcomer: isTv })
       .select()
       .single();
     if (error) throw error;

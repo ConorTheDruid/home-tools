@@ -32,13 +32,16 @@ no per-browser localStorage.
   re-spins locally, excluding the just-rejected title so you can't land
   on the same thing twice in a row.
 - **Finished** logs it to history and deletes it from the wheel.
-- **Newcomer bonus**: a new title starts at double its category's
-  average weight, so it gets a real shot early on instead of competing
-  on equal footing with established shows — and even after its first
-  pick halves that weight, it lands back around average instead of
-  behind. New titles glow (a pulsing gold rim + drifting particles on
-  their wedge, only while the wheel's at rest) until they've actually
-  been confirmed once, driven by `hometools_shows.is_newcomer`.
+- **Newcomer bonus (TV only)**: a new show starts at double its
+  category's average weight, so it gets a real shot early on instead of
+  competing on equal footing with established shows — and even after
+  its first pick halves that weight, it lands back around average
+  instead of behind. New shows glow (a pulsing gold rim + drifting
+  particles on their wedge, only while the wheel's at rest) until
+  they've actually been confirmed once, driven by
+  `hometools_shows.is_newcomer`. Movies skip this entirely — a movie is
+  normally confirmed once and finished right away, so it would never
+  actually lose the glow; every movie would just look permanently new.
 
 ## Live sync
 

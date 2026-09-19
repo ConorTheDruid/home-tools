@@ -165,8 +165,12 @@ async function loadVersionFooter() {
     const when = new Date(commit.commit.committer.date).toLocaleString(undefined, {
       month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
     });
+    const subject = commit.commit.message.split("\n")[0];
+    const escapedSubject = subject.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
     versionFooter.innerHTML =
-      `<a href="https://github.com/ConorTheDruid/home-tools/commit/${commit.sha}" target="_blank" rel="noopener">v${sha}</a> · ${when}`;
+      `<a href="https://github.com/ConorTheDruid/home-tools/commit/${commit.sha}" target="_blank" rel="noopener">v${sha}</a> · ${when} · ${escapedSubject}`;
   } catch (err) {
     console.error("Couldn't load version footer", err);
     versionFooter.textContent = "version unavailable";

@@ -1,6 +1,7 @@
 const STORAGE_KEY = "marqueeNight.state";
 
 const COLORS = ["#f4b400", "#3ecac2", "#e2574c", "#8b7fd6", "#f2a154", "#5fb3e0", "#d1c65c", "#c77dd1"];
+const DEFAULT_WEIGHT = 1;
 
 const state = loadState();
 let activeCategory = "tv";
@@ -56,22 +57,37 @@ addForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const value = addInput.value.trim();
   if (!value) return;
-  state[activeCategory].push(value);
+  const items = currentItems();
+  const weight = items.length
+    ? items.reduce((sum, it) => sum + it.weight, 0) / items.length
+    : DEFAULT_WEIGHT;
+  items.push({ title: value, weight });
   saveState();
   addInput.value = "";
   render();
 });
 
-spinBtn.addEventListener("click", spin);
+spinBtn.addEventListener("click", () => spin());
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrate(JSON.parse(raw));
   } catch (e) {
     /* corrupt or unavailable storage, fall back to defaults */
   }
   return { movies: [], tv: [], history: [] };
+}
+
+function migrate(saved) {
+  const toWeighted = (list) => (list || []).map((it) =>
+    typeof it === "string" ? { title: it, weight: DEFAULT_WEIGHT } : it
+  );
+  return {
+    movies: toWeighted(saved.movies),
+    tv: toWeighted(saved.tv),
+    history: saved.history || [],
+  };
 }
 
 function saveState() {
@@ -86,6 +102,19 @@ function currentItems() {
 function logHistory(title, category, event) {
   state.history.push({ title, category, event, at: new Date().toISOString() });
   saveState();
+}
+
+// Halves the winner's weight and splits what it lost equally across
+// everything else, so a show that just got picked is less likely to
+// come up again right away, and shows that haven't been picked in a
+// while gradually become more likely.
+function applyStreakDecay(items, index) {
+  const others = items.filter((_, i) => i !== index);
+  if (others.length === 0) return;
+  const lost = items[index].weight / 2;
+  items[index].weight -= lost;
+  const share = lost / others.length;
+  others.forEach((it) => { it.weight += share; });
 }
 
 function render() {
@@ -107,22 +136,44 @@ function renderList() {
     itemList.appendChild(li);
     return;
   }
+  const totalWeight = items.reduce((sum, it) => sum + it.weight, 0);
   items.forEach((item, index) => {
     const li = document.createElement("li");
     const label = document.createElement("span");
-    label.textContent = item;
+    label.className = "item-label";
+    label.textContent = item.title;
+
+    const chance = document.createElement("span");
+    chance.className = "item-chance";
+    chance.textContent = `${Math.round((item.weight / totalWeight) * 100)}%`;
+
     const removeBtn = document.createElement("button");
     removeBtn.className = "remove-btn";
     removeBtn.textContent = "✕";
-    removeBtn.setAttribute("aria-label", `Remove ${item}`);
+    removeBtn.setAttribute("aria-label", `Remove ${item.title}`);
     removeBtn.addEventListener("click", () => {
       state[activeCategory].splice(index, 1);
       saveState();
       render();
     });
     li.appendChild(label);
+    li.appendChild(chance);
     li.appendChild(removeBtn);
     itemList.appendChild(li);
+  });
+}
+
+// Slice layout proportional to weight, as {start, end} in radians, plus
+// the total weight — shared by drawWheel (visuals) and spin (odds) so
+// the wheel always looks like what it actually does.
+function sliceLayout(items) {
+  const totalWeight = items.reduce((sum, it) => sum + it.weight, 0);
+  let cursor = 0;
+  return items.map((item) => {
+    const span = (item.weight / totalWeight) * 2 * Math.PI;
+    const slice = { start: cursor, end: cursor + span };
+    cursor += span;
+    return slice;
   });
 }
 
@@ -134,7 +185,7 @@ function drawWheel(angleDeg) {
   ctx.clearRect(0, 0, size, size);
   if (items.length === 0) return;
 
-  const sliceAngle = (2 * Math.PI) / items.length;
+  const layout = sliceLayout(items);
   const rotation = (angleDeg * Math.PI) / 180;
 
   ctx.save();
@@ -142,8 +193,7 @@ function drawWheel(angleDeg) {
   ctx.rotate(rotation);
 
   items.forEach((item, i) => {
-    const start = i * sliceAngle;
-    const end = start + sliceAngle;
+    const { start, end } = layout[i];
 
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -153,12 +203,12 @@ function drawWheel(angleDeg) {
     ctx.fill();
 
     ctx.save();
-    ctx.rotate(start + sliceAngle / 2);
+    ctx.rotate((start + end) / 2);
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#1a1220";
     ctx.font = "700 15px Manrope, sans-serif";
-    const label = truncate(item, 20);
+    const label = truncate(item.title, 20);
     ctx.fillText(label, radius - 14, 0);
     ctx.restore();
   });
@@ -170,6 +220,20 @@ function truncate(text, max) {
   return text.length > max ? text.slice(0, max - 1) + "…" : text;
 }
 
+function weightedPick(items, excludeTitle) {
+  let eligible = items.map((_, i) => i);
+  if (excludeTitle && items.length > 1) {
+    eligible = eligible.filter((i) => items[i].title !== excludeTitle);
+  }
+  const totalWeight = eligible.reduce((sum, i) => sum + items[i].weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const i of eligible) {
+    r -= items[i].weight;
+    if (r <= 0) return i;
+  }
+  return eligible[eligible.length - 1];
+}
+
 function spin(excludeTitle) {
   const items = currentItems();
   if (items.length === 0 || spinning) return;
@@ -177,13 +241,9 @@ function spin(excludeTitle) {
   spinning = true;
   spinBtn.disabled = true;
 
-  let eligible = items.map((_, i) => i);
-  if (excludeTitle && items.length > 1) {
-    eligible = eligible.filter((i) => items[i] !== excludeTitle);
-  }
-  const winnerIndex = eligible[Math.floor(Math.random() * eligible.length)];
-  const sliceAngle = 360 / items.length;
-  const winnerMidAngle = sliceAngle * winnerIndex + sliceAngle / 2;
+  const winnerIndex = weightedPick(items, excludeTitle);
+  const layout = sliceLayout(items);
+  const winnerMidAngle = ((layout[winnerIndex].start + layout[winnerIndex].end) / 2) * (180 / Math.PI);
   const pointerAngle = 270; // top of the wheel, in canvas-angle terms
 
   let delta = ((pointerAngle - winnerMidAngle) % 360 + 360) % 360;
@@ -207,7 +267,7 @@ function spin(excludeTitle) {
       currentAngle = targetAngle % 360;
       spinning = false;
       spinBtn.disabled = false;
-      showResult(items[winnerIndex], winnerIndex);
+      showResult(items[winnerIndex].title, winnerIndex);
     }
   }
 
@@ -228,6 +288,8 @@ function buildModalActions(title, index) {
 
   modalActions.appendChild(makeButton("✓ Confirm — log it for tonight", "btn-confirm", () => {
     logHistory(title, category, "watched");
+    applyStreakDecay(state[category], index);
+    saveState();
     closeModal();
     render();
   }));
@@ -269,12 +331,12 @@ function renderHistory() {
 
   tvHistory.innerHTML = "";
   groupByTitle(tvEntries).forEach(({ title, entries }) => {
-    tvHistory.appendChild(renderHistoryCard(title, entries, state.tv.includes(title)));
+    tvHistory.appendChild(renderHistoryCard(title, entries, state.tv.some((it) => it.title === title)));
   });
 
   movieHistory.innerHTML = "";
   groupByTitle(movieEntries).forEach(({ title, entries }) => {
-    movieHistory.appendChild(renderHistoryCard(title, entries, state.movies.includes(title)));
+    movieHistory.appendChild(renderHistoryCard(title, entries, state.movies.some((it) => it.title === title)));
   });
 }
 

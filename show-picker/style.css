@@ -213,7 +213,6 @@ h1 {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
-  overflow: hidden;
 }
 
 .ticket-tear {
@@ -223,6 +222,7 @@ h1 {
   background-position: 10px -7px;
   background-color: var(--panel);
   border-bottom: 1px dashed var(--border);
+  border-radius: 16px 16px 0 0;
 }
 
 .ticket-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }

@@ -6,6 +6,7 @@ create table if not exists hometools_shows (
   category text not null check (category in ('movies', 'tv')),
   title text not null,
   weight double precision not null default 1,
+  is_newcomer boolean not null default true,
   created_at timestamptz not null default now()
 );
 
@@ -56,6 +57,8 @@ begin
   if winner_weight is null then
     return;
   end if;
+
+  update hometools_shows set is_newcomer = false where id = winner_id;
 
   select count(*) into other_count
   from hometools_shows

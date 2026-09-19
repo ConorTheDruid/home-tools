@@ -54,6 +54,19 @@ body {
 
 header { text-align: center; display: flex; flex-direction: column; gap: 2px; }
 
+.conn-banner {
+  width: 100%;
+  background: #4a1620;
+  color: #ffd7dc;
+  border: 1px solid #7a2c39;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+}
+
 .eyebrow {
   font-family: "Manrope", sans-serif;
   font-weight: 800;

@@ -1,9 +1,9 @@
-const STORAGE_KEY = "marqueeNight.state";
-
 const COLORS = ["#f4b400", "#3ecac2", "#e2574c", "#8b7fd6", "#f2a154", "#5fb3e0", "#d1c65c", "#c77dd1"];
 const DEFAULT_WEIGHT = 1;
 
-const state = loadState();
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const state = { movies: [], tv: [], history: [] };
 let activeCategory = "tv";
 let currentAngle = 0;
 let spinning = false;
@@ -23,6 +23,15 @@ const historyView = document.getElementById("historyView");
 const tvHistory = document.getElementById("tvHistory");
 const movieHistory = document.getElementById("movieHistory");
 const historyEmpty = document.getElementById("historyEmpty");
+const connBanner = document.getElementById("connBanner");
+
+connBanner.addEventListener("click", () => connBanner.classList.add("hidden"));
+
+function showConnError(message, err) {
+  if (err) console.error(message, err);
+  connBanner.textContent = `⚠ ${message} (tap to dismiss)`;
+  connBanner.classList.remove("hidden");
+}
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -53,68 +62,80 @@ document.querySelectorAll(".view-tab").forEach((tab) => {
   });
 });
 
-addForm.addEventListener("submit", (e) => {
+addForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const value = addInput.value.trim();
   if (!value) return;
+  addInput.value = "";
+
   const items = currentItems();
   const weight = items.length
     ? items.reduce((sum, it) => sum + it.weight, 0) / items.length
     : DEFAULT_WEIGHT;
-  items.push({ title: value, weight });
-  saveState();
-  addInput.value = "";
-  render();
+
+  try {
+    const { data, error } = await sb
+      .from("hometools_shows")
+      .insert({ category: activeCategory, title: value, weight })
+      .select()
+      .single();
+    if (error) throw error;
+    upsertShow(data);
+    render();
+  } catch (err) {
+    showConnError("Couldn't add that — is the Supabase table set up?", err);
+  }
 });
 
 spinBtn.addEventListener("click", () => spin());
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return migrate(JSON.parse(raw));
-  } catch (e) {
-    /* corrupt or unavailable storage, fall back to defaults */
-  }
-  return { movies: [], tv: [], history: [] };
-}
-
-function migrate(saved) {
-  const toWeighted = (list) => (list || []).map((it) =>
-    typeof it === "string" ? { title: it, weight: DEFAULT_WEIGHT } : it
-  );
-  return {
-    movies: toWeighted(saved.movies),
-    tv: toWeighted(saved.tv),
-    history: saved.history || [],
-  };
-}
-
-function saveState() {
-  if (!state.history) state.history = [];
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
 
 function currentItems() {
   return state[activeCategory];
 }
 
-function logHistory(title, category, event) {
-  state.history.push({ title, category, event, at: new Date().toISOString() });
-  saveState();
+function upsertShow(row) {
+  const list = row.category === "movies" ? state.movies : state.tv;
+  const idx = list.findIndex((it) => it.id === row.id);
+  if (idx >= 0) list[idx] = row;
+  else list.push(row);
+}
+
+function removeShowLocal(id) {
+  state.movies = state.movies.filter((it) => it.id !== id);
+  state.tv = state.tv.filter((it) => it.id !== id);
+}
+
+function upsertHistory(row) {
+  if (!state.history.some((h) => h.id === row.id)) state.history.push(row);
 }
 
 // Halves the winner's weight and splits what it lost equally across
 // everything else, so a show that just got picked is less likely to
 // come up again right away, and shows that haven't been picked in a
-// while gradually become more likely.
-function applyStreakDecay(items, index) {
-  const others = items.filter((_, i) => i !== index);
-  if (others.length === 0) return;
-  const lost = items[index].weight / 2;
-  items[index].weight -= lost;
-  const share = lost / others.length;
-  others.forEach((it) => { it.weight += share; });
+// while gradually become more likely. Runs as one atomic database
+// function (see supabase-setup.sql) so two people confirming picks at
+// the same moment can't interleave and corrupt the weights.
+async function applyStreakDecay(category, winnerId) {
+  const { error } = await sb.rpc("confirm_pick", { winner_id: winnerId });
+  if (error) throw error;
+  const { data, error: fetchError } = await sb
+    .from("hometools_shows")
+    .select("*")
+    .eq("category", category)
+    .order("created_at", { ascending: true });
+  if (fetchError) throw fetchError;
+  if (category === "movies") state.movies = data || [];
+  else state.tv = data || [];
+}
+
+async function logHistory(title, category, event) {
+  const { data, error } = await sb
+    .from("hometools_show_history")
+    .insert({ title, category, event })
+    .select()
+    .single();
+  if (error) throw error;
+  upsertHistory(data);
 }
 
 function render() {
@@ -137,7 +158,7 @@ function renderList() {
     return;
   }
   const totalWeight = items.reduce((sum, it) => sum + it.weight, 0);
-  items.forEach((item, index) => {
+  items.forEach((item) => {
     const li = document.createElement("li");
     const label = document.createElement("span");
     label.className = "item-label";
@@ -151,10 +172,15 @@ function renderList() {
     removeBtn.className = "remove-btn";
     removeBtn.textContent = "✕";
     removeBtn.setAttribute("aria-label", `Remove ${item.title}`);
-    removeBtn.addEventListener("click", () => {
-      state[activeCategory].splice(index, 1);
-      saveState();
+    removeBtn.addEventListener("click", async () => {
+      removeShowLocal(item.id);
       render();
+      try {
+        const { error } = await sb.from("hometools_shows").delete().eq("id", item.id);
+        if (error) throw error;
+      } catch (err) {
+        showConnError("Couldn't remove that from the shared list", err);
+      }
     });
     li.appendChild(label);
     li.appendChild(chance);
@@ -267,44 +293,50 @@ function spin(excludeTitle) {
       currentAngle = targetAngle % 360;
       spinning = false;
       spinBtn.disabled = false;
-      showResult(items[winnerIndex].title, winnerIndex);
+      showResult(items[winnerIndex]);
     }
   }
 
   requestAnimationFrame(frame);
 }
 
-function showResult(title, index) {
-  resultName.textContent = title;
-  resultModal.dataset.index = index;
-  resultModal.dataset.title = title;
-  buildModalActions(title, index);
+function showResult(item) {
+  resultName.textContent = item.title;
+  buildModalActions(item);
   resultModal.classList.remove("hidden");
 }
 
-function buildModalActions(title, index) {
+function buildModalActions(item) {
   modalActions.innerHTML = "";
   const category = activeCategory;
 
-  modalActions.appendChild(makeButton("✓ Confirm — log it for tonight", "btn-confirm", () => {
-    logHistory(title, category, "watched");
-    applyStreakDecay(state[category], index);
-    saveState();
+  modalActions.appendChild(makeButton("✓ Confirm — log it for tonight", "btn-confirm", async () => {
     closeModal();
-    render();
+    try {
+      await logHistory(item.title, category, "watched");
+      await applyStreakDecay(category, item.id);
+      render();
+    } catch (err) {
+      showConnError("Couldn't save that pick to the shared list", err);
+    }
   }));
 
   modalActions.appendChild(makeButton("↻ Not tonight — reroll", "btn-reject", () => {
     closeModal();
-    spin(title);
+    spin(item.title);
   }));
 
-  modalActions.appendChild(makeButton("🏁 Finished — remove it", "btn-finished", () => {
-    logHistory(title, category, "finished");
-    state[category].splice(index, 1);
-    saveState();
+  modalActions.appendChild(makeButton("🏁 Finished — remove it", "btn-finished", async () => {
     closeModal();
+    removeShowLocal(item.id);
     render();
+    try {
+      await logHistory(item.title, category, "finished");
+      const { error } = await sb.from("hometools_shows").delete().eq("id", item.id);
+      if (error) throw error;
+    } catch (err) {
+      showConnError("Couldn't save that to the shared list", err);
+    }
   }));
 }
 
@@ -408,4 +440,40 @@ function formatDate(iso) {
     " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-render();
+function subscribeRealtime() {
+  sb.channel("hometools_shows_changes")
+    .on("postgres_changes", { event: "*", schema: "public", table: "hometools_shows" }, (payload) => {
+      if (payload.eventType === "DELETE") removeShowLocal(payload.old.id);
+      else upsertShow(payload.new);
+      render();
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "hometools_show_history" }, (payload) => {
+      if (payload.eventType === "INSERT") upsertHistory(payload.new);
+      if (!historyView.classList.contains("hidden")) renderHistory();
+    })
+    .subscribe((status) => {
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        showConnError("Live sync dropped — reload to catch up on the other person's changes");
+      }
+    });
+}
+
+async function init() {
+  try {
+    const [{ data: shows, error: showsErr }, { data: history, error: historyErr }] = await Promise.all([
+      sb.from("hometools_shows").select("*").order("created_at", { ascending: true }),
+      sb.from("hometools_show_history").select("*").order("at", { ascending: true }),
+    ]);
+    if (showsErr) throw showsErr;
+    if (historyErr) throw historyErr;
+    state.movies = (shows || []).filter((s) => s.category === "movies");
+    state.tv = (shows || []).filter((s) => s.category === "tv");
+    state.history = history || [];
+  } catch (err) {
+    showConnError("Couldn't load the shared list — check the Supabase setup", err);
+  }
+  render();
+  subscribeRealtime();
+}
+
+init();

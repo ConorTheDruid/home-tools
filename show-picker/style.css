@@ -331,19 +331,18 @@ h1 {
   border-radius: 999px;
   padding: 4px;
   gap: 4px;
-  width: 100%;
 }
 
 .subnav-pill {
-  flex: 1;
   border: none;
   background: transparent;
   color: var(--muted);
-  padding: 8px 10px;
+  padding: 9px 18px;
   border-radius: 999px;
   font-family: "Manrope", sans-serif;
   font-weight: 800;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }

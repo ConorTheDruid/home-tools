@@ -409,10 +409,10 @@ async function applyStreakDecay(category, winnerId) {
   else state.tv = data || [];
 }
 
-async function logHistory(title, category, event) {
+async function logHistory(title, category, event, posterPath) {
   const { data, error } = await sb
     .from("hometools_show_history")
-    .insert({ title, category, event })
+    .insert({ title, category, event, poster_path: posterPath || null })
     .select()
     .single();
   if (error) throw error;
@@ -815,7 +815,7 @@ function buildModalActions(item) {
   modalActions.appendChild(makeButton("✓ Confirm — log it for tonight", "btn-confirm", async () => {
     closeModal();
     try {
-      await logHistory(item.title, category, "watched");
+      await logHistory(item.title, category, "watched", item.poster_path);
       await applyStreakDecay(category, item.id);
       render();
     } catch (err) {
@@ -833,7 +833,7 @@ function buildModalActions(item) {
     removeShowLocal(item.id);
     render();
     try {
-      await logHistory(item.title, category, "finished");
+      await logHistory(item.title, category, "finished", item.poster_path);
       const { error } = await sb.from("hometools_shows").delete().eq("id", item.id);
       if (error) throw error;
     } catch (err) {
@@ -892,7 +892,11 @@ function renderTimeline(history) {
 
     const swatch = document.createElement("span");
     swatch.className = "timeline-swatch";
-    swatch.style.background = colorForTitle(entry.title);
+    if (entry.poster_path) {
+      swatch.style.backgroundImage = `url("${posterUrl(entry.poster_path, "w92")}")`;
+    } else {
+      swatch.style.background = colorForTitle(entry.title);
+    }
 
     const info = document.createElement("div");
     info.className = "timeline-info";
@@ -916,10 +920,21 @@ function renderTimeline(history) {
   });
 }
 
-// Month grid with each day's watch/finish events shown as small colored
-// dots (one per distinct title that day), plus a legend below mapping
-// title → color — there's rarely room to spell out titles inside a phone-
-// width day cell, but plenty of vertical space for a legend underneath.
+// Fills a calendar day (or half of a split day) with a show's poster,
+// falling back to its flat title color when no art was logged for it.
+function applyCalLayer(el, title, posterPath) {
+  el.title = title;
+  if (posterPath) {
+    el.style.backgroundImage = `url("${posterUrl(posterPath, "w185")}")`;
+  } else {
+    el.style.background = colorForTitle(title);
+  }
+}
+
+// Month grid with each day showing the poster(s) of whatever was watched
+// that night — a forward-slash split when two shows landed on the same
+// day — plus a legend below mapping title → color for the flat-color
+// fallback cells.
 function renderCalendar(history) {
   if (!calendarMonth) {
     const latest = history.slice().sort((a, b) => new Date(b.at) - new Date(a.at))[0];
@@ -969,23 +984,40 @@ function renderCalendar(history) {
 
     const dayEntries = byDay.get(`${year}-${month}-${day}`);
     if (dayEntries && dayEntries.length) {
-      const titles = [...new Set(dayEntries.map((e) => e.title))];
-      const dots = document.createElement("div");
-      dots.className = "cal-dots";
-      const shown = titles.slice(0, 4);
-      shown.forEach((title) => {
-        const dot = document.createElement("span");
-        dot.className = "cal-dot";
-        dot.style.background = colorForTitle(title);
-        dots.appendChild(dot);
+      cell.classList.add("has-photo");
+      // One poster per distinct title that night — first entry logged
+      // with art wins if the same show was watched more than once.
+      const posterByTitle = new Map();
+      dayEntries.forEach((e) => {
+        if (!posterByTitle.has(e.title)) posterByTitle.set(e.title, e.poster_path || null);
       });
-      if (titles.length > shown.length) {
-        const more = document.createElement("span");
-        more.className = "cal-dot-more";
-        more.textContent = `+${titles.length - shown.length}`;
-        dots.appendChild(more);
+      const titles = [...posterByTitle.keys()];
+
+      const photo = document.createElement("div");
+      photo.className = "cal-cell-photo";
+
+      if (titles.length === 1) {
+        applyCalLayer(photo, titles[0], posterByTitle.get(titles[0]));
+      } else {
+        // Two shows in one night: a forward-slash crop, one poster in the
+        // upper-left triangle and one in the lower-right.
+        const a = document.createElement("div");
+        a.className = "cal-split cal-split-a";
+        applyCalLayer(a, titles[0], posterByTitle.get(titles[0]));
+        const b = document.createElement("div");
+        b.className = "cal-split cal-split-b";
+        applyCalLayer(b, titles[1], posterByTitle.get(titles[1]));
+        photo.appendChild(a);
+        photo.appendChild(b);
+
+        if (titles.length > 2) {
+          const more = document.createElement("span");
+          more.className = "cal-more-badge";
+          more.textContent = `+${titles.length - 2}`;
+          photo.appendChild(more);
+        }
       }
-      cell.appendChild(dots);
+      cell.appendChild(photo);
     }
     calGrid.appendChild(cell);
   }
@@ -1164,12 +1196,30 @@ function renderHistoryCard(title, entries, stillInRotation) {
   const card = document.createElement("div");
   card.className = "history-card";
 
-  const head = document.createElement("div");
-  head.className = "history-card-head";
+  // Banner photo, as wide as the card allows — the title rides on top of
+  // it in the same dark pill the wheel uses for cover-art wedges. Older
+  // rows (logged before history entries carried poster_path) just fall
+  // back to the flat-color treatment, same as an art-less wheel wedge.
+  const posterEntry = entries.find((e) => e.poster_path);
+  const photo = document.createElement("div");
+  photo.className = "history-card-photo";
+  const hasPhoto = !!posterEntry;
+  if (hasPhoto) {
+    photo.style.backgroundImage = `url("${posterUrl(posterEntry.poster_path, "w500")}")`;
+  } else {
+    photo.style.background = colorForTitle(title);
+  }
 
   const name = document.createElement("span");
-  name.className = "history-title";
+  name.className = "history-card-name" + (hasPhoto ? " pill" : "");
   name.textContent = title;
+  photo.appendChild(name);
+
+  const body = document.createElement("div");
+  body.className = "history-card-body";
+
+  const meta = document.createElement("div");
+  meta.className = "history-card-meta";
 
   const status = document.createElement("span");
   const finished = entries.some((e) => e.event === "finished");
@@ -1187,12 +1237,12 @@ function renderHistoryCard(title, entries, stillInRotation) {
   status.className = "history-status" + statusClass;
   status.textContent = statusText;
 
-  head.appendChild(name);
-  head.appendChild(status);
-
   const count = document.createElement("span");
   count.className = "history-count";
   count.textContent = entries.length === 1 ? "Watched once" : `Watched ${entries.length} times`;
+
+  meta.appendChild(status);
+  meta.appendChild(count);
 
   const dates = document.createElement("ul");
   dates.className = "history-dates";
@@ -1202,9 +1252,11 @@ function renderHistoryCard(title, entries, stillInRotation) {
     dates.appendChild(li);
   });
 
-  card.appendChild(head);
-  card.appendChild(count);
-  card.appendChild(dates);
+  body.appendChild(meta);
+  body.appendChild(dates);
+
+  card.appendChild(photo);
+  card.appendChild(body);
   return card;
 }
 

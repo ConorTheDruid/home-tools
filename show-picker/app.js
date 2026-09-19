@@ -165,7 +165,19 @@ async function loadVersionFooter() {
     const when = new Date(commit.commit.committer.date).toLocaleString(undefined, {
       month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
     });
-    const subject = commit.commit.message.split("\n")[0];
+    let subject = commit.commit.message.split("\n")[0];
+    try {
+      const prRes = await fetch(
+        `https://api.github.com/repos/ConorTheDruid/home-tools/commits/${commit.sha}/pulls`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      if (prRes.ok) {
+        const [pr] = await prRes.json();
+        if (pr) subject = pr.title;
+      }
+    } catch (prErr) {
+      console.error("Couldn't load PR title for version footer", prErr);
+    }
     const escapedSubject = subject.replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     }[c]));

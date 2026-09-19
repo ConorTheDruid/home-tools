@@ -12,6 +12,9 @@ function colorForTitle(title) {
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const RATING_ORDER = ["S+", "S", "S-", "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F"];
+const GRADE_LETTERS = ["S", "A", "B", "C", "D", "F"];
+
 // TMDB search + poster art. Only poster_path (a ~30-byte string like
 // "/abc123.jpg") and tmdb_id ever get written to the database — the
 // actual image bytes stay on TMDB's CDN and are fetched straight into
@@ -99,8 +102,9 @@ function buildSearchResultRow(match, onPick) {
   return row;
 }
 
-const state = { movies: [], tv: [], history: [] };
+const state = { movies: [], tv: [], history: [], rankings: [] };
 let activeCategory = "tv";
+let rankingsCategory = "tv";
 let currentAngle = 0;
 let spinning = false;
 
@@ -117,6 +121,9 @@ const resultName = document.getElementById("resultName");
 const modalActions = document.getElementById("modalActions");
 const wheelView = document.getElementById("wheelView");
 const historyView = document.getElementById("historyView");
+const rankingsView = document.getElementById("rankingsView");
+const rankingsList = document.getElementById("rankingsList");
+const rankingsEmpty = document.getElementById("rankingsEmpty");
 const tvHistory = document.getElementById("tvHistory");
 const movieHistory = document.getElementById("movieHistory");
 const historyEmpty = document.getElementById("historyEmpty");
@@ -166,9 +173,9 @@ async function loadVersionFooter() {
   }
 }
 
-document.querySelectorAll(".tab").forEach((tab) => {
+document.querySelectorAll("#wheelView .tab").forEach((tab) => {
   tab.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((t) => {
+    document.querySelectorAll("#wheelView .tab").forEach((t) => {
       t.classList.remove("active");
       t.setAttribute("aria-selected", "false");
     });
@@ -177,6 +184,19 @@ document.querySelectorAll(".tab").forEach((tab) => {
     activeCategory = tab.dataset.cat;
     currentAngle = 0;
     render();
+  });
+});
+
+document.querySelectorAll("#rankingsView .tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll("#rankingsView .tab").forEach((t) => {
+      t.classList.remove("active");
+      t.setAttribute("aria-selected", "false");
+    });
+    tab.classList.add("active");
+    tab.setAttribute("aria-selected", "true");
+    rankingsCategory = tab.dataset.cat;
+    renderRankings();
   });
 });
 
@@ -191,7 +211,9 @@ document.querySelectorAll(".view-tab").forEach((tab) => {
     const view = tab.dataset.view;
     wheelView.classList.toggle("hidden", view !== "wheel");
     historyView.classList.toggle("hidden", view !== "history");
+    rankingsView.classList.toggle("hidden", view !== "rankings");
     if (view === "history") renderHistory();
+    if (view === "rankings") renderRankings();
   });
 });
 
@@ -885,6 +907,145 @@ function renderCalendar(history) {
   });
 }
 
+// A title becomes ranking-eligible once it's actually "done": a movie the
+// moment it's been watched (you don't rewatch a movie in rotation, so
+// watching it is finishing it), a TV show only once its series is marked
+// finished (a "watched" event just means an episode aired, not that
+// you're done with the show).
+function rankingEligibleTitles(category) {
+  const latestByTitle = new Map();
+  state.history.forEach((h) => {
+    if (h.category !== category) return;
+    if (category === "tv" && h.event !== "finished") return;
+    const at = new Date(h.at).getTime();
+    if (!latestByTitle.has(h.title) || at > latestByTitle.get(h.title)) {
+      latestByTitle.set(h.title, at);
+    }
+  });
+  return latestByTitle;
+}
+
+function renderRankings() {
+  const category = rankingsCategory;
+  const eligible = rankingEligibleTitles(category);
+  const ratingsByTitle = new Map(
+    state.rankings.filter((r) => r.category === category).map((r) => [r.title, r.rating])
+  );
+
+  const items = [...eligible.entries()].map(([title, at]) => ({
+    title,
+    at,
+    rating: ratingsByTitle.get(title) || null,
+  }));
+
+  // Unrated titles always float to the top; among rated titles, best
+  // grade first — that's the point of a ranking. Recency breaks ties
+  // within a group.
+  items.sort((a, b) => {
+    const ra = a.rating ? RATING_ORDER.indexOf(a.rating) : -1;
+    const rb = b.rating ? RATING_ORDER.indexOf(b.rating) : -1;
+    if (ra !== rb) return ra - rb;
+    return b.at - a.at;
+  });
+
+  rankingsList.innerHTML = "";
+  rankingsEmpty.classList.toggle("hidden", items.length > 0);
+  items.forEach((item) => rankingsList.appendChild(renderRankingCard(item, category)));
+}
+
+function renderRankingCard(item, category) {
+  const li = document.createElement("li");
+  li.className = "ranking-card";
+
+  const head = document.createElement("div");
+  head.className = "ranking-card-head";
+
+  const name = document.createElement("span");
+  name.className = "ranking-title";
+  name.textContent = item.title;
+
+  const badge = document.createElement("span");
+  badge.className = "ranking-badge" + (item.rating ? ` grade-${item.rating[0]}` : "");
+  badge.textContent = item.rating || "Unrated";
+
+  head.appendChild(name);
+  head.appendChild(badge);
+
+  const currentLetter = item.rating ? item.rating[0] : null;
+  const currentMod = item.rating && item.rating.length > 1 ? item.rating[1] : null;
+
+  const controls = document.createElement("div");
+  controls.className = "ranking-controls";
+
+  const letterRow = document.createElement("div");
+  letterRow.className = "grade-row";
+  GRADE_LETTERS.forEach((letter) => {
+    const btn = document.createElement("button");
+    btn.className = "grade-btn" + (currentLetter === letter ? " active" : "");
+    btn.textContent = letter;
+    btn.addEventListener("click", () => {
+      const next = currentLetter === letter && !currentMod ? null : letter;
+      setRating(category, item.title, next);
+    });
+    letterRow.appendChild(btn);
+  });
+  controls.appendChild(letterRow);
+
+  if (currentLetter && currentLetter !== "F") {
+    const modRow = document.createElement("div");
+    modRow.className = "mod-row";
+    ["+", "-"].forEach((mod) => {
+      const btn = document.createElement("button");
+      btn.className = "mod-btn" + (currentMod === mod ? " active" : "");
+      btn.textContent = mod;
+      btn.addEventListener("click", () => {
+        const next = currentMod === mod ? currentLetter : currentLetter + mod;
+        setRating(category, item.title, next);
+      });
+      modRow.appendChild(btn);
+    });
+    controls.appendChild(modRow);
+  }
+
+  li.appendChild(head);
+  li.appendChild(controls);
+  return li;
+}
+
+function upsertRanking(row) {
+  const idx = state.rankings.findIndex((r) => r.category === row.category && r.title === row.title);
+  if (idx >= 0) state.rankings[idx] = row;
+  else state.rankings.push(row);
+}
+
+async function setRating(category, title, rating) {
+  const idx = state.rankings.findIndex((r) => r.category === category && r.title === title);
+  if (rating) {
+    if (idx >= 0) state.rankings[idx] = { ...state.rankings[idx], rating };
+    else state.rankings.push({ category, title, rating });
+  } else if (idx >= 0) {
+    state.rankings.splice(idx, 1);
+  }
+  renderRankings();
+
+  try {
+    if (rating) {
+      const { data, error } = await sb
+        .from("hometools_rankings")
+        .upsert({ category, title, rating, updated_at: new Date().toISOString() }, { onConflict: "category,title" })
+        .select()
+        .single();
+      if (error) throw error;
+      upsertRanking(data);
+    } else {
+      const { error } = await sb.from("hometools_rankings").delete().eq("category", category).eq("title", title);
+      if (error) throw error;
+    }
+  } catch (err) {
+    showConnError("Couldn't save that rating to the shared list", err);
+  }
+}
+
 function groupByTitle(entries) {
   const map = new Map();
   entries.forEach((e) => {
@@ -971,6 +1132,14 @@ function subscribeRealtime() {
       if (payload.eventType === "INSERT") upsertHistory(payload.new);
       if (!historyView.classList.contains("hidden")) renderHistory();
     })
+    .on("postgres_changes", { event: "*", schema: "public", table: "hometools_rankings" }, (payload) => {
+      if (payload.eventType === "DELETE") {
+        state.rankings = state.rankings.filter((r) => r.id !== payload.old.id);
+      } else {
+        upsertRanking(payload.new);
+      }
+      if (!rankingsView.classList.contains("hidden")) renderRankings();
+    })
     .subscribe((status) => {
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         showConnError("Live sync dropped — reload to catch up on the other person's changes");
@@ -980,15 +1149,22 @@ function subscribeRealtime() {
 
 async function init() {
   try {
-    const [{ data: shows, error: showsErr }, { data: history, error: historyErr }] = await Promise.all([
+    const [
+      { data: shows, error: showsErr },
+      { data: history, error: historyErr },
+      { data: rankings, error: rankingsErr },
+    ] = await Promise.all([
       sb.from("hometools_shows").select("*").order("created_at", { ascending: true }),
       sb.from("hometools_show_history").select("*").order("at", { ascending: true }),
+      sb.from("hometools_rankings").select("*"),
     ]);
     if (showsErr) throw showsErr;
     if (historyErr) throw historyErr;
+    if (rankingsErr) throw rankingsErr;
     state.movies = (shows || []).filter((s) => s.category === "movies");
     state.tv = (shows || []).filter((s) => s.category === "tv");
     state.history = history || [];
+    state.rankings = rankings || [];
   } catch (err) {
     showConnError("Couldn't load the shared list — check the Supabase setup", err);
   }

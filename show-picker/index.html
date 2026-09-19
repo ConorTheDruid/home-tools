@@ -52,14 +52,37 @@
     </section>
 
     <section id="historyView" class="view hidden">
-      <div class="history-group">
-        <h2 class="history-heading">TV Shows</h2>
-        <div id="tvHistory" class="history-cards"></div>
+      <div class="history-subnav" role="tablist">
+        <button class="subnav-pill active" data-subview="byShow" role="tab" aria-selected="true">By Show</button>
+        <button class="subnav-pill" data-subview="timeline" role="tab" aria-selected="false">Timeline</button>
+        <button class="subnav-pill" data-subview="calendar" role="tab" aria-selected="false">Calendar</button>
       </div>
-      <div class="history-group">
-        <h2 class="history-heading">Movies</h2>
-        <div id="movieHistory" class="history-cards"></div>
+
+      <div id="byShowPanel" class="history-panel">
+        <div class="history-group">
+          <h2 class="history-heading">TV Shows</h2>
+          <div id="tvHistory" class="history-cards"></div>
+        </div>
+        <div class="history-group">
+          <h2 class="history-heading">Movies</h2>
+          <div id="movieHistory" class="history-cards"></div>
+        </div>
       </div>
+
+      <div id="timelinePanel" class="history-panel hidden">
+        <ul id="timelineList" class="timeline-list"></ul>
+      </div>
+
+      <div id="calendarPanel" class="history-panel hidden">
+        <div class="calendar-nav">
+          <button id="calPrev" class="cal-nav-btn" aria-label="Previous month">‹</button>
+          <span id="calMonthLabel" class="cal-month-label"></span>
+          <button id="calNext" class="cal-nav-btn" aria-label="Next month">›</button>
+        </div>
+        <div id="calGrid" class="cal-grid"></div>
+        <div id="calLegend" class="cal-legend"></div>
+      </div>
+
       <p id="historyEmpty" class="empty-list hidden">Nothing watched yet — spin the wheel and mark something watched to start your history.</p>
     </section>
 

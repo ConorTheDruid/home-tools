@@ -1,6 +1,15 @@
 const COLORS = ["#f4b400", "#3ecac2", "#e2574c", "#8b7fd6", "#f2a154", "#5fb3e0", "#d1c65c", "#c77dd1"];
 const DEFAULT_WEIGHT = 1;
 
+// A show's color has to come from its title, not its position in the
+// current wheel array — a finished or removed show has no wheel position
+// at all, but still needs a consistent color in the timeline and calendar.
+function colorForTitle(title) {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
+  return COLORS[hash % COLORS.length];
+}
+
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const state = { movies: [], tv: [], history: [] };
@@ -23,8 +32,20 @@ const historyView = document.getElementById("historyView");
 const tvHistory = document.getElementById("tvHistory");
 const movieHistory = document.getElementById("movieHistory");
 const historyEmpty = document.getElementById("historyEmpty");
+const byShowPanel = document.getElementById("byShowPanel");
+const timelinePanel = document.getElementById("timelinePanel");
+const calendarPanel = document.getElementById("calendarPanel");
+const timelineList = document.getElementById("timelineList");
+const calPrev = document.getElementById("calPrev");
+const calNext = document.getElementById("calNext");
+const calMonthLabel = document.getElementById("calMonthLabel");
+const calGrid = document.getElementById("calGrid");
+const calLegend = document.getElementById("calLegend");
 const connBanner = document.getElementById("connBanner");
 const versionFooter = document.getElementById("versionFooter");
+
+let historySubView = "byShow";
+let calendarMonth = null; // Date on the 1st of the shown month; set lazily from history
 
 connBanner.addEventListener("click", () => connBanner.classList.add("hidden"));
 
@@ -83,6 +104,31 @@ document.querySelectorAll(".view-tab").forEach((tab) => {
     historyView.classList.toggle("hidden", view !== "history");
     if (view === "history") renderHistory();
   });
+});
+
+document.querySelectorAll(".subnav-pill").forEach((pill) => {
+  pill.addEventListener("click", () => {
+    document.querySelectorAll(".subnav-pill").forEach((p) => {
+      p.classList.remove("active");
+      p.setAttribute("aria-selected", "false");
+    });
+    pill.classList.add("active");
+    pill.setAttribute("aria-selected", "true");
+    historySubView = pill.dataset.subview;
+    byShowPanel.classList.toggle("hidden", historySubView !== "byShow");
+    timelinePanel.classList.toggle("hidden", historySubView !== "timeline");
+    calendarPanel.classList.toggle("hidden", historySubView !== "calendar");
+  });
+});
+
+calPrev.addEventListener("click", () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+  renderCalendar(state.history || []);
+});
+
+calNext.addEventListener("click", () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+  renderCalendar(state.history || []);
 });
 
 addForm.addEventListener("submit", async (e) => {
@@ -261,7 +307,7 @@ function drawWheel(angleDeg, sparkleTime) {
     ctx.moveTo(0, 0);
     ctx.arc(0, 0, radius, start, end);
     ctx.closePath();
-    ctx.fillStyle = COLORS[i % COLORS.length];
+    ctx.fillStyle = colorForTitle(item.title);
     ctx.fill();
 
     ctx.save();
@@ -444,10 +490,16 @@ function closeModal() {
 
 function renderHistory() {
   const history = state.history || [];
+  historyEmpty.classList.toggle("hidden", history.length > 0);
+  renderByShow(history);
+  renderTimeline(history);
+  renderCalendar(history);
+}
+
+function renderByShow(history) {
   const tvEntries = history.filter((h) => h.category === "tv");
   const movieEntries = history.filter((h) => h.category === "movies");
 
-  historyEmpty.classList.toggle("hidden", history.length > 0);
   tvHistory.parentElement.classList.toggle("hidden", tvEntries.length === 0);
   movieHistory.parentElement.classList.toggle("hidden", movieEntries.length === 0);
 
@@ -459,6 +511,133 @@ function renderHistory() {
   movieHistory.innerHTML = "";
   groupByTitle(movieEntries).forEach(({ title, entries }) => {
     movieHistory.appendChild(renderHistoryCard(title, entries, state.movies.some((it) => it.title === title)));
+  });
+}
+
+// Flat, chronological log of every watch/finish event — unlike the By Show
+// cards, the same title can (and often will) appear as several rows in a
+// row, since that's literally what happened.
+function renderTimeline(history) {
+  const entries = history.slice().sort((a, b) => new Date(b.at) - new Date(a.at));
+  timelineList.innerHTML = "";
+  entries.forEach((entry) => {
+    const li = document.createElement("li");
+    li.className = "timeline-row";
+
+    const swatch = document.createElement("span");
+    swatch.className = "timeline-swatch";
+    swatch.style.background = colorForTitle(entry.title);
+
+    const info = document.createElement("div");
+    info.className = "timeline-info";
+    const title = document.createElement("span");
+    title.className = "timeline-title";
+    title.textContent = entry.title;
+    const meta = document.createElement("span");
+    meta.className = "timeline-meta";
+    meta.textContent = `${entry.category === "tv" ? "TV" : "Movie"} · ${formatDate(entry.at)}`;
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const badge = document.createElement("span");
+    badge.className = "timeline-badge" + (entry.event === "finished" ? " finished" : "");
+    badge.textContent = entry.event === "finished" ? "Finished" : "Watched";
+
+    li.appendChild(swatch);
+    li.appendChild(info);
+    li.appendChild(badge);
+    timelineList.appendChild(li);
+  });
+}
+
+// Month grid with each day's watch/finish events shown as small colored
+// dots (one per distinct title that day), plus a legend below mapping
+// title → color — there's rarely room to spell out titles inside a phone-
+// width day cell, but plenty of vertical space for a legend underneath.
+function renderCalendar(history) {
+  if (!calendarMonth) {
+    const latest = history.slice().sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+    const base = latest ? new Date(latest.at) : new Date();
+    calendarMonth = new Date(base.getFullYear(), base.getMonth(), 1);
+  }
+
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  calMonthLabel.textContent = calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const byDay = new Map();
+  history.forEach((entry) => {
+    const d = new Date(entry.at);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(entry);
+  });
+
+  calGrid.innerHTML = "";
+  ["S", "M", "T", "W", "T", "F", "S"].forEach((label) => {
+    const dow = document.createElement("div");
+    dow.className = "cal-dow";
+    dow.textContent = label;
+    calGrid.appendChild(dow);
+  });
+
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let i = 0; i < firstDow; i++) {
+    const filler = document.createElement("div");
+    filler.className = "cal-cell cal-filler";
+    calGrid.appendChild(filler);
+  }
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const cell = document.createElement("div");
+    cell.className = "cal-cell";
+    if (isCurrentMonth && today.getDate() === day) cell.classList.add("cal-today");
+
+    const num = document.createElement("span");
+    num.className = "cal-day-num";
+    num.textContent = day;
+    cell.appendChild(num);
+
+    const dayEntries = byDay.get(`${year}-${month}-${day}`);
+    if (dayEntries && dayEntries.length) {
+      const titles = [...new Set(dayEntries.map((e) => e.title))];
+      const dots = document.createElement("div");
+      dots.className = "cal-dots";
+      const shown = titles.slice(0, 4);
+      shown.forEach((title) => {
+        const dot = document.createElement("span");
+        dot.className = "cal-dot";
+        dot.style.background = colorForTitle(title);
+        dots.appendChild(dot);
+      });
+      if (titles.length > shown.length) {
+        const more = document.createElement("span");
+        more.className = "cal-dot-more";
+        more.textContent = `+${titles.length - shown.length}`;
+        dots.appendChild(more);
+      }
+      cell.appendChild(dots);
+    }
+    calGrid.appendChild(cell);
+  }
+
+  const legendTitles = [...new Set(history.map((e) => e.title))].sort((a, b) => a.localeCompare(b));
+  calLegend.innerHTML = "";
+  legendTitles.forEach((title) => {
+    const item = document.createElement("div");
+    item.className = "cal-legend-item";
+    const swatch = document.createElement("span");
+    swatch.className = "cal-legend-swatch";
+    swatch.style.background = colorForTitle(title);
+    const label = document.createElement("span");
+    label.className = "cal-legend-label";
+    label.textContent = title;
+    item.appendChild(swatch);
+    item.appendChild(label);
+    calLegend.appendChild(item);
   });
 }
 

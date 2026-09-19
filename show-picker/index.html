@@ -42,10 +42,13 @@
       <div class="ticket">
         <div class="ticket-tear" aria-hidden="true"></div>
         <div class="ticket-body">
-          <form id="addForm" class="add-form">
-            <input id="addInput" type="text" placeholder="Add a title…" autocomplete="off" />
-            <button type="submit">Add</button>
-          </form>
+          <div class="add-form-wrap">
+            <form id="addForm" class="add-form">
+              <input id="addInput" type="text" placeholder="Add a title…" autocomplete="off" />
+              <button type="submit">Add</button>
+            </form>
+            <div id="searchResults" class="search-results hidden"></div>
+          </div>
           <ul id="itemList" class="item-list"></ul>
         </div>
       </div>
@@ -99,6 +102,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
   <script src="supabase-config.js"></script>
+  <script src="tmdb-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

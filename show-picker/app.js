@@ -232,6 +232,38 @@ document.querySelectorAll(".subnav-pill").forEach((pill) => {
   });
 });
 
+// Fun easter egg: splits the header title into per-letter spans and
+// bounces whichever one is under the pointer — hover on desktop, a
+// dragged finger on mobile. Pointer events cover both without extra
+// touch-specific plumbing, so long as we hit-test by coordinates
+// instead of relying on per-letter enter events (a touch drag doesn't
+// re-target those the way a mouse hover does).
+const watchlistTitle = document.getElementById("watchlistTitle");
+if (watchlistTitle) {
+  const titleLetters = [...watchlistTitle.textContent].map((ch) => {
+    const span = document.createElement("span");
+    span.className = "title-letter";
+    span.textContent = ch === " " ? "\u00A0" : ch;
+    return span;
+  });
+  watchlistTitle.textContent = "";
+  titleLetters.forEach((span) => watchlistTitle.appendChild(span));
+
+  let lastBouncedLetter = null;
+  function bounceLetterAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (el && el.classList.contains("title-letter") && el !== lastBouncedLetter) {
+      el.classList.remove("bounce");
+      void el.offsetWidth;
+      el.classList.add("bounce");
+      lastBouncedLetter = el;
+    }
+  }
+  watchlistTitle.addEventListener("pointerdown", (e) => bounceLetterAt(e.clientX, e.clientY));
+  watchlistTitle.addEventListener("pointermove", (e) => bounceLetterAt(e.clientX, e.clientY));
+  watchlistTitle.addEventListener("pointerleave", () => { lastBouncedLetter = null; });
+}
+
 calPrev.addEventListener("click", () => {
   calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
   renderCalendar(state.history || []);

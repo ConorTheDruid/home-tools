@@ -15,6 +15,93 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const RATING_ORDER = ["S+", "S", "S-", "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F"];
 const GRADE_LETTERS = ["S", "A", "B", "C", "D", "F"];
 
+// TMDB search + poster art. Only poster_path (a ~30-byte string like
+// "/abc123.jpg") and tmdb_id ever get written to the database — the
+// actual image bytes stay on TMDB's CDN and are fetched straight into
+// <img>/canvas from there, so there's no per-show storage cost to worry
+// about on Supabase's free tier no matter how many places art renders.
+const TMDB_SEARCH_KIND = { tv: "tv", movies: "movie" };
+const posterImageCache = new Map(); // poster_path -> HTMLImageElement
+
+function posterUrl(path, size) {
+  return `${TMDB_IMAGE_BASE}${size}${path}`;
+}
+
+// Draws img into the (dx, dy, dw, dh) rect the way CSS object-fit: cover
+// would — scaled up to fill the rect on whichever axis needs it more,
+// then center-cropped on the other. Used to fit a portrait poster into a
+// wedge's wider-than-tall radial box without distorting it.
+function drawCover(img, dx, dy, dw, dh) {
+  const scale = Math.max(dw / img.naturalWidth, dh / img.naturalHeight);
+  const sw = dw / scale;
+  const sh = dh / scale;
+  const sx = (img.naturalWidth - sw) / 2;
+  const sy = (img.naturalHeight - sh) / 2;
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+
+// Lazily creates (and caches) the Image for a poster path, kicking off
+// the load the first time it's asked for. Callers just check
+// img.complete before drawing with it; the onload redraw is what makes
+// art "pop in" on the wheel a moment after it first appears.
+function getPosterImage(path) {
+  if (!path) return null;
+  let img = posterImageCache.get(path);
+  if (!img) {
+    img = new Image();
+    img.onload = () => drawWheel(currentAngle);
+    img.src = posterUrl(path, "w342");
+    posterImageCache.set(path, img);
+  }
+  return img;
+}
+
+async function tmdbSearch(category, query) {
+  const url = new URL(`https://api.themoviedb.org/3/search/${TMDB_SEARCH_KIND[category]}`);
+  url.searchParams.set("api_key", TMDB_API_KEY);
+  url.searchParams.set("query", query);
+  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`TMDB search ${res.status}`);
+  const data = await res.json();
+  return (data.results || []).slice(0, 6).map((r) => ({
+    tmdbId: r.id,
+    title: category === "movies" ? r.title : r.name,
+    year: (category === "movies" ? r.release_date : r.first_air_date || "").slice(0, 4),
+    posterPath: r.poster_path || null,
+  }));
+}
+
+// One result row, shared by the add-form dropdown and the per-item "find
+// art" picker below — clicking it fires onPick(match).
+function buildSearchResultRow(match, onPick) {
+  const row = document.createElement("div");
+  row.className = "search-result";
+
+  const poster = document.createElement(match.posterPath ? "img" : "span");
+  poster.className = "search-result-poster" + (match.posterPath ? "" : " placeholder");
+  if (match.posterPath) poster.src = posterUrl(match.posterPath, "w92");
+  else poster.textContent = "No art";
+
+  const info = document.createElement("div");
+  info.className = "search-result-info";
+  const title = document.createElement("span");
+  title.className = "search-result-title";
+  title.textContent = match.title;
+  const year = document.createElement("span");
+  year.className = "search-result-year";
+  year.textContent = match.year || "";
+  info.appendChild(title);
+  info.appendChild(year);
+
+  row.appendChild(poster);
+  row.appendChild(info);
+  // Fires before the input's blur handler hides the dropdown, so the
+  // click still lands.
+  row.addEventListener("mousedown", (e) => e.preventDefault());
+  row.addEventListener("click", () => onPick(match));
+  return row;
+}
+
 const state = { movies: [], tv: [], history: [], rankings: [] };
 let activeCategory = "tv";
 let rankingsCategory = "tv";
@@ -28,6 +115,7 @@ const emptyMsg = document.getElementById("emptyMsg");
 const itemList = document.getElementById("itemList");
 const addForm = document.getElementById("addForm");
 const addInput = document.getElementById("addInput");
+const searchResults = document.getElementById("searchResults");
 const resultModal = document.getElementById("resultModal");
 const resultName = document.getElementById("resultName");
 const modalActions = document.getElementById("modalActions");
@@ -154,11 +242,60 @@ calNext.addEventListener("click", () => {
   renderCalendar(state.history || []);
 });
 
+// A search match only travels with the add if the input still reads
+// exactly what was picked — edit the text afterward (or never pick
+// anything) and it falls back to a plain title-only add, same as today.
+let pendingMatch = null;
+let searchDebounce = null;
+
+addInput.addEventListener("input", () => {
+  pendingMatch = null;
+  const query = addInput.value.trim();
+  clearTimeout(searchDebounce);
+  if (query.length < 2) {
+    hideSearchResults();
+    return;
+  }
+  searchDebounce = setTimeout(async () => {
+    try {
+      const results = await tmdbSearch(activeCategory, query);
+      searchResults.innerHTML = "";
+      if (results.length === 0) {
+        hideSearchResults();
+        return;
+      }
+      results.forEach((match) => {
+        searchResults.appendChild(buildSearchResultRow(match, (picked) => {
+          addInput.value = picked.title;
+          pendingMatch = picked;
+          hideSearchResults();
+        }));
+      });
+      searchResults.classList.remove("hidden");
+    } catch (err) {
+      console.error("TMDB search failed", err);
+      hideSearchResults();
+    }
+  }, 300);
+});
+
+addInput.addEventListener("blur", () => {
+  setTimeout(hideSearchResults, 150);
+});
+
+function hideSearchResults() {
+  searchResults.classList.add("hidden");
+  searchResults.innerHTML = "";
+}
+
 addForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const value = addInput.value.trim();
   if (!value) return;
+  const match = pendingMatch && pendingMatch.title === value ? pendingMatch : null;
   addInput.value = "";
+  pendingMatch = null;
+  hideSearchResults();
 
   // Newcomer bonus (TV only): a new show starts at double the category's
   // average weight, so it gets a real shot early on against established
@@ -177,7 +314,14 @@ addForm.addEventListener("submit", async (e) => {
   try {
     const { data, error } = await sb
       .from("hometools_shows")
-      .insert({ category: activeCategory, title: value, weight, is_newcomer: isTv })
+      .insert({
+        category: activeCategory,
+        title: value,
+        weight,
+        is_newcomer: isTv,
+        tmdb_id: match ? match.tmdbId : null,
+        poster_path: match ? match.posterPath : null,
+      })
       .select()
       .single();
     if (error) throw error;
@@ -286,9 +430,85 @@ function renderList() {
     });
     li.appendChild(label);
     li.appendChild(chance);
+    if (!item.poster_path) {
+      const artBtn = document.createElement("button");
+      artBtn.type = "button";
+      artBtn.className = "find-art-btn";
+      artBtn.textContent = "🎬 Art";
+      artBtn.setAttribute("aria-label", `Find cover art for ${item.title}`);
+      artBtn.addEventListener("click", () => openArtPicker(item, li));
+      li.appendChild(artBtn);
+    }
     li.appendChild(removeBtn);
     itemList.appendChild(li);
   });
+}
+
+// Turns one existing row into an inline search box (same TMDB search as
+// the add form) so a title that was added before art existed — or one
+// that matched wrong — can get its tmdb_id/poster_path filled in later,
+// without re-adding it.
+function openArtPicker(item, li) {
+  li.innerHTML = "";
+  li.classList.add("art-picking");
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "art-picker-input";
+  input.value = item.title;
+  input.autocomplete = "off";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "art-picker-cancel";
+  cancelBtn.textContent = "✕";
+  cancelBtn.setAttribute("aria-label", "Cancel");
+  cancelBtn.addEventListener("click", () => renderList());
+
+  const results = document.createElement("div");
+  results.className = "search-results art-picker-results hidden";
+
+  li.appendChild(input);
+  li.appendChild(cancelBtn);
+  li.appendChild(results);
+
+  let debounce = null;
+  input.addEventListener("input", () => {
+    clearTimeout(debounce);
+    const query = input.value.trim();
+    if (query.length < 2) {
+      results.classList.add("hidden");
+      results.innerHTML = "";
+      return;
+    }
+    debounce = setTimeout(async () => {
+      try {
+        const matches = await tmdbSearch(item.category, query);
+        results.innerHTML = "";
+        matches.forEach((match) => {
+          results.appendChild(buildSearchResultRow(match, async (picked) => {
+            try {
+              const { data, error } = await sb
+                .from("hometools_shows")
+                .update({ tmdb_id: picked.tmdbId, poster_path: picked.posterPath })
+                .eq("id", item.id)
+                .select()
+                .single();
+              if (error) throw error;
+              upsertShow(data);
+              render();
+            } catch (err) {
+              showConnError("Couldn't save that artwork", err);
+            }
+          }));
+        });
+        results.classList.toggle("hidden", matches.length === 0);
+      } catch (err) {
+        console.error("TMDB search failed", err);
+      }
+    }, 300);
+  });
+  input.focus();
 }
 
 // Slice layout proportional to weight, as {start, end} in radians, plus
@@ -325,19 +545,42 @@ function drawWheel(angleDeg, sparkleTime) {
 
   items.forEach((item, i) => {
     const { start, end } = layout[i];
+    const poster = item.poster_path ? getPosterImage(item.poster_path) : null;
+    const posterReady = !!poster && poster.complete && poster.naturalWidth > 0;
 
+    ctx.save();
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.arc(0, 0, radius, start, end);
     ctx.closePath();
-    ctx.fillStyle = colorForTitle(item.title);
-    ctx.fill();
+    ctx.clip();
+
+    if (posterReady) {
+      ctx.save();
+      ctx.rotate((start + end) / 2);
+      // Cover-fit the poster into the wedge's radial bounding box (apex
+      // at the center, full diameter tall) — the clip above trims it
+      // down to the actual pie-slice shape.
+      drawCover(poster, 0, -radius, radius, radius * 2);
+      // Scrim toward the rim so the title stays legible over any art.
+      const scrim = ctx.createLinearGradient(0, 0, radius, 0);
+      scrim.addColorStop(0, "rgba(10, 6, 14, 0)");
+      scrim.addColorStop(0.65, "rgba(10, 6, 14, 0)");
+      scrim.addColorStop(1, "rgba(10, 6, 14, 0.65)");
+      ctx.fillStyle = scrim;
+      ctx.fillRect(0, -radius, radius, radius * 2);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = colorForTitle(item.title);
+      ctx.fill();
+    }
+    ctx.restore();
 
     ctx.save();
     ctx.rotate((start + end) / 2);
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#1a1220";
+    ctx.fillStyle = posterReady ? "#f5ecd9" : "#1a1220";
     ctx.font = "700 15px Manrope, sans-serif";
     const label = truncate(item.title, 20);
     ctx.fillText(label, radius - 14, 0);

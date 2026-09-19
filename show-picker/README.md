@@ -17,6 +17,30 @@ no per-browser localStorage.
    file. If you ever point this at a different Supabase project, update
    both values there.
 
+## Cover art
+
+Adding a title debounce-searches [TMDB](https://www.themoviedb.org) as you
+type; pick a result and its poster becomes the wedge itself (clipped to
+the pie-slice shape, cover-fit so the full poster height stays visible).
+Keep typing without picking, or add a title TMDB doesn't have, and it
+falls back to the old plain-color wedge — nothing about adding a show is
+required to change.
+
+Existing titles that predate this feature show a small **🎬 Art** button
+next to them in the list; click it to run the same search scoped to that
+one show and attach art after the fact.
+
+Only `tmdb_id` and `poster_path` (a tiny string like `/abc123.jpg`) ever
+get written to Supabase — the actual poster images are fetched straight
+from TMDB's own CDN into the browser, never stored or re-uploaded here.
+That keeps this comfortably inside Supabase's free-tier row/storage
+limits no matter how many places the art ends up rendering.
+
+One-time setup: run `supabase-migration-tmdb.sql` once (adds the two
+columns) in addition to `supabase-setup.sql`. `tmdb-config.js` already has
+a TMDB API key — same public-by-design trust model as
+`supabase-config.js`.
+
 ## How the wheel works
 
 - Every show/movie has a **weight**, not just a title. Confirming a pick

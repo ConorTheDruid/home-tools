@@ -272,7 +272,106 @@ h1 {
 }
 .item-list .remove-btn:hover { color: var(--gold); }
 
+.item-list .find-art-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 4px 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.item-list .find-art-btn:hover { border-color: var(--teal); color: var(--ink); }
+
 .empty-list { color: var(--muted); font-size: 0.88rem; text-align: center; padding: 10px 0; }
+
+.add-form-wrap { position: relative; }
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-y: auto;
+  max-height: 260px;
+  z-index: 3;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.search-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.search-result:last-child { border-bottom: none; }
+.search-result:hover { background: var(--panel); }
+
+.search-result-poster {
+  width: 34px;
+  height: 51px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--panel);
+  flex-shrink: 0;
+}
+.search-result-poster.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.6rem;
+  padding: 2px;
+}
+
+.search-result-info { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.search-result-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-result-year { color: var(--muted); font-size: 0.74rem; }
+
+.item-list li.art-picking {
+  flex-wrap: wrap;
+  position: relative;
+}
+.art-picker-input {
+  flex: 1;
+  min-width: 120px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--ink);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.88rem;
+}
+.art-picker-cancel {
+  background: none; border: none; color: var(--muted);
+  font-size: 1rem; line-height: 1; cursor: pointer; padding: 2px 6px; flex-shrink: 0;
+}
+.art-picker-cancel:hover { color: var(--gold); }
+.art-picker-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+}
 
 .modal {
   position: fixed; inset: 0;

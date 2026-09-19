@@ -32,6 +32,16 @@ no per-browser localStorage.
   re-spins locally, excluding the just-rejected title so you can't land
   on the same thing twice in a row.
 - **Finished** logs it to history and deletes it from the wheel.
+- **Rankings tab**: once a title is "done" — a movie the moment it's
+  been watched, a TV show once its series is marked finished — it shows
+  up in Rankings (with its own TV/Movies toggle), sorted unrated-first,
+  then best grade to worst. Grade it S/A/B/C/D/F, with an optional +/-
+  on anything but F; tap the same plain letter again to clear a rating.
+  Ratings live in their own `hometools_rankings` table (keyed by
+  category + title) so a title keeps its grade even after it's deleted
+  from `hometools_shows`. Run `supabase-migration-rankings.sql` once
+  against an existing project to add it; a fresh `supabase-setup.sql`
+  run already includes it.
 - **Newcomer bonus (TV only)**: a new show starts at double its
   category's average weight, so it gets a real shot early on instead of
   competing on equal footing with established shows — and even after

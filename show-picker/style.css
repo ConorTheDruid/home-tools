@@ -13,6 +13,8 @@
   --green: #4cbb6c;
   --green-ink: #06210f;
   --danger: #e2574c;
+  --grade-c: #8b7fd6;
+  --grade-d: #f2a154;
 }
 
 * { box-sizing: border-box; }
@@ -557,6 +559,85 @@ h1 {
 
 .cal-legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .cal-legend-label { overflow-wrap: anywhere; }
+
+.rankings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.ranking-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ranking-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ranking-title {
+  font-weight: 800;
+  font-size: 1rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ranking-badge.grade-S { color: var(--gold-ink); background: var(--gold); border-color: var(--gold); }
+.ranking-badge.grade-A { color: #072320; background: var(--teal); border-color: var(--teal); }
+.ranking-badge.grade-B { color: var(--green-ink); background: var(--green); border-color: var(--green); }
+.ranking-badge.grade-C { color: var(--ink); background: var(--grade-c); border-color: var(--grade-c); }
+.ranking-badge.grade-D { color: var(--gold-ink); background: var(--grade-d); border-color: var(--grade-d); }
+.ranking-badge.grade-F { color: #fff0ee; background: var(--danger); border-color: var(--danger); }
+
+.ranking-controls { display: flex; flex-direction: column; gap: 8px; }
+
+.grade-row, .mod-row { display: flex; gap: 6px; }
+.mod-row { max-width: 140px; }
+
+.grade-btn, .mod-btn {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 8px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.grade-btn:hover, .mod-btn:hover { border-color: var(--teal); }
+
+.grade-btn.active { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+.mod-btn.active { background: var(--teal); color: #072320; border-color: var(--teal); }
 
 .version-footer {
   width: 100%;

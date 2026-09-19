@@ -18,8 +18,22 @@ create table if not exists hometools_show_history (
   at timestamptz not null default now()
 );
 
+create table if not exists hometools_rankings (
+  id uuid primary key default gen_random_uuid(),
+  category text not null check (category in ('movies', 'tv')),
+  title text not null,
+  rating text not null check (rating in (
+    'S+', 'S', 'S-', 'A+', 'A', 'A-', 'B+', 'B', 'B-',
+    'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'
+  )),
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  unique (category, title)
+);
+
 alter table hometools_shows enable row level security;
 alter table hometools_show_history enable row level security;
+alter table hometools_rankings enable row level security;
 
 -- Permissive policies: anyone with the project's public anon key can
 -- read/write these two tables. There's no login for this app — the two
@@ -31,10 +45,14 @@ create policy "anon full access" on hometools_shows
 create policy "anon full access" on hometools_show_history
   for all using (true) with check (true);
 
+create policy "anon full access" on hometools_rankings
+  for all using (true) with check (true);
+
 -- Live sync: lets both browsers see changes the moment the other person
 -- makes them, without refreshing.
 alter publication supabase_realtime add table hometools_shows;
 alter publication supabase_realtime add table hometools_show_history;
+alter publication supabase_realtime add table hometools_rankings;
 
 -- Confirming a pick halves its weight and splits the lost half equally
 -- across the rest of its category. Doing this as one database function

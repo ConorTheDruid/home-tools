@@ -22,6 +22,7 @@
     <div class="view-switch" role="tablist">
       <button class="view-tab active" data-view="wheel" role="tab" aria-selected="true">Wheel</button>
       <button class="view-tab" data-view="history" role="tab" aria-selected="false">History</button>
+      <button class="view-tab" data-view="rankings" role="tab" aria-selected="false">Rankings</button>
     </div>
 
     <section id="wheelView" class="view">
@@ -84,6 +85,16 @@
       </div>
 
       <p id="historyEmpty" class="empty-list hidden">Nothing watched yet — spin the wheel and mark something watched to start your history.</p>
+    </section>
+
+    <section id="rankingsView" class="view hidden">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-cat="tv" role="tab" aria-selected="true">TV Shows</button>
+        <button class="tab" data-cat="movies" role="tab" aria-selected="false">Movies</button>
+      </div>
+
+      <ul id="rankingsList" class="rankings-list"></ul>
+      <p id="rankingsEmpty" class="empty-list hidden">Nothing to rank yet — finish a series or watch a movie first.</p>
     </section>
 
     <footer id="versionFooter" class="version-footer">checking version…</footer>

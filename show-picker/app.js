@@ -854,15 +854,34 @@ function closeModal() {
   resultModal.classList.add("hidden");
 }
 
+// Title -> poster_path, so every history view can show art even though
+// the history rows themselves rarely carry it. A show's live row in
+// hometools_shows (state.tv/state.movies) is the freshest source — art
+// can get matched onto it well after a pick was logged — so it wins.
+// hometools_show_history.poster_path (only present on rows logged since
+// that column existed) is the fallback, since it's the only place a
+// finished show's art survives once its hometools_shows row is deleted.
+function buildPosterIndex(history) {
+  const map = new Map();
+  history.forEach((h) => {
+    if (h.poster_path && !map.has(h.title)) map.set(h.title, h.poster_path);
+  });
+  [...state.tv, ...state.movies].forEach((item) => {
+    if (item.poster_path) map.set(item.title, item.poster_path);
+  });
+  return map;
+}
+
 function renderHistory() {
   const history = state.history || [];
   historyEmpty.classList.toggle("hidden", history.length > 0);
-  renderByShow(history);
-  renderTimeline(history);
-  renderCalendar(history);
+  const posterIndex = buildPosterIndex(history);
+  renderByShow(history, posterIndex);
+  renderTimeline(history, posterIndex);
+  renderCalendar(history, posterIndex);
 }
 
-function renderByShow(history) {
+function renderByShow(history, posterIndex) {
   const tvEntries = history.filter((h) => h.category === "tv");
   const movieEntries = history.filter((h) => h.category === "movies");
 
@@ -871,19 +890,23 @@ function renderByShow(history) {
 
   tvHistory.innerHTML = "";
   groupByTitle(tvEntries).forEach(({ title, entries }) => {
-    tvHistory.appendChild(renderHistoryCard(title, entries, state.tv.some((it) => it.title === title)));
+    tvHistory.appendChild(
+      renderHistoryCard(title, entries, state.tv.some((it) => it.title === title), posterIndex.get(title))
+    );
   });
 
   movieHistory.innerHTML = "";
   groupByTitle(movieEntries).forEach(({ title, entries }) => {
-    movieHistory.appendChild(renderHistoryCard(title, entries, state.movies.some((it) => it.title === title)));
+    movieHistory.appendChild(
+      renderHistoryCard(title, entries, state.movies.some((it) => it.title === title), posterIndex.get(title))
+    );
   });
 }
 
 // Flat, chronological log of every watch/finish event — unlike the By Show
 // cards, the same title can (and often will) appear as several rows in a
 // row, since that's literally what happened.
-function renderTimeline(history) {
+function renderTimeline(history, posterIndex) {
   const entries = history.slice().sort((a, b) => new Date(b.at) - new Date(a.at));
   timelineList.innerHTML = "";
   entries.forEach((entry) => {
@@ -892,8 +915,9 @@ function renderTimeline(history) {
 
     const swatch = document.createElement("span");
     swatch.className = "timeline-swatch";
-    if (entry.poster_path) {
-      swatch.style.backgroundImage = `url("${posterUrl(entry.poster_path, "w92")}")`;
+    const posterPath = posterIndex.get(entry.title);
+    if (posterPath) {
+      swatch.style.backgroundImage = `url("${posterUrl(posterPath, "w92")}")`;
     } else {
       swatch.style.background = colorForTitle(entry.title);
     }
@@ -935,7 +959,7 @@ function applyCalLayer(el, title, posterPath) {
 // that night — a forward-slash split when two shows landed on the same
 // day — plus a legend below mapping title → color for the flat-color
 // fallback cells.
-function renderCalendar(history) {
+function renderCalendar(history, posterIndex) {
   if (!calendarMonth) {
     const latest = history.slice().sort((a, b) => new Date(b.at) - new Date(a.at))[0];
     const base = latest ? new Date(latest.at) : new Date();
@@ -985,28 +1009,22 @@ function renderCalendar(history) {
     const dayEntries = byDay.get(`${year}-${month}-${day}`);
     if (dayEntries && dayEntries.length) {
       cell.classList.add("has-photo");
-      // One poster per distinct title that night — first entry logged
-      // with art wins if the same show was watched more than once.
-      const posterByTitle = new Map();
-      dayEntries.forEach((e) => {
-        if (!posterByTitle.has(e.title)) posterByTitle.set(e.title, e.poster_path || null);
-      });
-      const titles = [...posterByTitle.keys()];
+      const titles = [...new Set(dayEntries.map((e) => e.title))];
 
       const photo = document.createElement("div");
       photo.className = "cal-cell-photo";
 
       if (titles.length === 1) {
-        applyCalLayer(photo, titles[0], posterByTitle.get(titles[0]));
+        applyCalLayer(photo, titles[0], posterIndex.get(titles[0]));
       } else {
         // Two shows in one night: a forward-slash crop, one poster in the
         // upper-left triangle and one in the lower-right.
         const a = document.createElement("div");
         a.className = "cal-split cal-split-a";
-        applyCalLayer(a, titles[0], posterByTitle.get(titles[0]));
+        applyCalLayer(a, titles[0], posterIndex.get(titles[0]));
         const b = document.createElement("div");
         b.className = "cal-split cal-split-b";
-        applyCalLayer(b, titles[1], posterByTitle.get(titles[1]));
+        applyCalLayer(b, titles[1], posterIndex.get(titles[1]));
         photo.appendChild(a);
         photo.appendChild(b);
 
@@ -1192,20 +1210,19 @@ function groupByTitle(entries) {
     .sort((a, b) => new Date(b.entries[0].at) - new Date(a.entries[0].at));
 }
 
-function renderHistoryCard(title, entries, stillInRotation) {
+function renderHistoryCard(title, entries, stillInRotation, posterPath) {
   const card = document.createElement("div");
   card.className = "history-card";
 
   // Banner photo, as wide as the card allows — the title rides on top of
-  // it in the same dark pill the wheel uses for cover-art wedges. Older
-  // rows (logged before history entries carried poster_path) just fall
-  // back to the flat-color treatment, same as an art-less wheel wedge.
-  const posterEntry = entries.find((e) => e.poster_path);
+  // it in the same dark pill the wheel uses for cover-art wedges. Shows
+  // with no TMDB match yet fall back to the flat-color treatment, same
+  // as an art-less wheel wedge.
   const photo = document.createElement("div");
   photo.className = "history-card-photo";
-  const hasPhoto = !!posterEntry;
+  const hasPhoto = !!posterPath;
   if (hasPhoto) {
-    photo.style.backgroundImage = `url("${posterUrl(posterEntry.poster_path, "w500")}")`;
+    photo.style.backgroundImage = `url("${posterUrl(posterPath, "w500")}")`;
   } else {
     photo.style.background = colorForTitle(title);
   }

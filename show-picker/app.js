@@ -61,7 +61,8 @@ function showConnError(message, err) {
 async function loadVersionFooter() {
   try {
     const res = await fetch(
-      "https://api.github.com/repos/ConorTheDruid/home-tools/commits?path=show-picker&per_page=1"
+      "https://api.github.com/repos/ConorTheDruid/home-tools/commits?path=show-picker&per_page=1",
+      { signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) throw new Error(`GitHub API ${res.status}`);
     const [commit] = await res.json();

@@ -24,6 +24,7 @@ const tvHistory = document.getElementById("tvHistory");
 const movieHistory = document.getElementById("movieHistory");
 const historyEmpty = document.getElementById("historyEmpty");
 const connBanner = document.getElementById("connBanner");
+const versionFooter = document.getElementById("versionFooter");
 
 connBanner.addEventListener("click", () => connBanner.classList.add("hidden"));
 
@@ -31,6 +32,28 @@ function showConnError(message, err) {
   if (err) console.error(message, err);
   connBanner.textContent = `⚠ ${message} (tap to dismiss)`;
   connBanner.classList.remove("hidden");
+}
+
+// Shows exactly what's actually deployed, pulled live from GitHub rather
+// than a string that has to be remembered and bumped by hand — so "is
+// this a sync issue or a real bug" is answerable at a glance.
+async function loadVersionFooter() {
+  try {
+    const res = await fetch(
+      "https://api.github.com/repos/ConorTheDruid/home-tools/commits?path=show-picker&per_page=1"
+    );
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const [commit] = await res.json();
+    const sha = commit.sha.slice(0, 7);
+    const when = new Date(commit.commit.committer.date).toLocaleString(undefined, {
+      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+    });
+    versionFooter.innerHTML =
+      `<a href="https://github.com/ConorTheDruid/home-tools/commit/${commit.sha}" target="_blank" rel="noopener">v${sha}</a> · ${when}`;
+  } catch (err) {
+    console.error("Couldn't load version footer", err);
+    versionFooter.textContent = "version unavailable";
+  }
 }
 
 document.querySelectorAll(".tab").forEach((tab) => {
@@ -541,6 +564,7 @@ async function init() {
   }
   render();
   subscribeRealtime();
+  loadVersionFooter();
 }
 
 init();

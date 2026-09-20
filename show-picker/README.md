@@ -4,18 +4,18 @@ Spinner wheel for picking a movie or TV show, backed by Supabase so you and
 whoever else has the link see the same list, weights, and history live —
 no per-browser localStorage.
 
-## One-time Supabase setup
+## Supabase setup
 
-1. Open the Supabase project → **SQL Editor** → New query.
-2. Paste in `supabase-setup.sql` and run it. It creates the two tables
-   (`hometools_shows`, `hometools_show_history`), the `confirm_pick`
-   function that does the weight-decay math atomically, RLS policies
-   permissive enough for the anon key to read/write, and adds both
-   tables to the realtime publication.
-3. `supabase-config.js` already has the project URL + anon public key.
-   That key is meant to be public client-side — see the comment in that
-   file. If you ever point this at a different Supabase project, update
-   both values there.
+The production Supabase project already has the schema this app expects:
+the `hometools_shows`, `hometools_show_history`, and `hometools_rankings`
+tables, the `confirm_pick` function that does the weight-decay math
+atomically, RLS policies permissive enough for the anon key to read/write,
+and both tables added to the realtime publication.
+
+`supabase-config.js` has the project URL + anon public key. That key is
+meant to be public client-side — see the comment in that file. If you ever
+point this at a different Supabase project, you'll need to recreate that
+schema there and update both values in `supabase-config.js`.
 
 ## Cover art
 
@@ -36,17 +36,15 @@ from TMDB's own CDN into the browser, never stored or re-uploaded here.
 That keeps this comfortably inside Supabase's free-tier row/storage
 limits no matter how many places the art ends up rendering.
 
-One-time setup: run `supabase-migration-tmdb.sql` once (adds the two
-columns) in addition to `supabase-setup.sql`. `tmdb-config.js` already has
-a TMDB API key — same public-by-design trust model as
-`supabase-config.js`.
+This needs a `tmdb_id` and `poster_path` column on `hometools_shows`
+(already present in production). `tmdb-config.js` already has a TMDB API
+key — same public-by-design trust model as `supabase-config.js`.
 
 History entries (Confirm/Finished) also keep their own copy of the
 poster so past picks keep their art even after a show is deleted from
-the wheel. One-time setup: run `supabase-migration-history-art.sql`
-once (adds a `poster_path` column to `hometools_show_history`) — without
-it, Confirm and Finished fail with "Couldn't save that pick to the
-shared list".
+the wheel, via a `poster_path` column on `hometools_show_history` (also
+already present in production) — without it, Confirm and Finished fail
+with "Couldn't save that pick to the shared list".
 
 ## How the wheel works
 
@@ -69,10 +67,8 @@ shared list".
   then best grade to worst. Grade it S/A/B/C/D/F, with an optional +/-
   on anything but F; tap the same plain letter again to clear a rating.
   Ratings live in their own `hometools_rankings` table (keyed by
-  category + title) so a title keeps its grade even after it's deleted
-  from `hometools_shows`. Run `supabase-migration-rankings.sql` once
-  against an existing project to add it; a fresh `supabase-setup.sql`
-  run already includes it.
+  category + title, already present in production) so a title keeps its
+  grade even after it's deleted from `hometools_shows`.
 - **Newcomer bonus (TV only)**: a new show starts at double its
   category's average weight, so it gets a real shot early on instead of
   competing on equal footing with established shows — and even after

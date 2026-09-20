@@ -393,7 +393,7 @@ function upsertHistory(row) {
 // everything else, so a show that just got picked is less likely to
 // come up again right away, and shows that haven't been picked in a
 // while gradually become more likely. Runs as one atomic database
-// function (see supabase-setup.sql) so two people confirming picks at
+// function (defined on the Supabase project) so two people confirming picks at
 // the same moment can't interleave and corrupt the weights.
 async function applyStreakDecay(category, winnerId) {
   const { error } = await sb.rpc("confirm_pick", { winner_id: winnerId });

@@ -269,12 +269,12 @@ if (watchlistTitle) {
 
 calPrev.addEventListener("click", () => {
   calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
-  renderCalendar(state.history || []);
+  renderHistory();
 });
 
 calNext.addEventListener("click", () => {
   calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
-  renderCalendar(state.history || []);
+  renderHistory();
 });
 
 // A search match only travels with the add if the input still reads

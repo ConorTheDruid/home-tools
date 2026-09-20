@@ -41,6 +41,13 @@ columns) in addition to `supabase-setup.sql`. `tmdb-config.js` already has
 a TMDB API key — same public-by-design trust model as
 `supabase-config.js`.
 
+History entries (Confirm/Finished) also keep their own copy of the
+poster so past picks keep their art even after a show is deleted from
+the wheel. One-time setup: run `supabase-migration-history-art.sql`
+once (adds a `poster_path` column to `hometools_show_history`) — without
+it, Confirm and Finished fail with "Couldn't save that pick to the
+shared list".
+
 ## How the wheel works
 
 - Every show/movie has a **weight**, not just a title. Confirming a pick

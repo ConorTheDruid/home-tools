@@ -135,7 +135,6 @@ const calPrev = document.getElementById("calPrev");
 const calNext = document.getElementById("calNext");
 const calMonthLabel = document.getElementById("calMonthLabel");
 const calGrid = document.getElementById("calGrid");
-const calLegend = document.getElementById("calLegend");
 const connBanner = document.getElementById("connBanner");
 const versionFooter = document.getElementById("versionFooter");
 
@@ -1039,22 +1038,6 @@ function renderCalendar(history, posterIndex) {
     }
     calGrid.appendChild(cell);
   }
-
-  const legendTitles = [...new Set(history.map((e) => e.title))].sort((a, b) => a.localeCompare(b));
-  calLegend.innerHTML = "";
-  legendTitles.forEach((title) => {
-    const item = document.createElement("div");
-    item.className = "cal-legend-item";
-    const swatch = document.createElement("span");
-    swatch.className = "cal-legend-swatch";
-    swatch.style.background = colorForTitle(title);
-    const label = document.createElement("span");
-    label.className = "cal-legend-label";
-    label.textContent = title;
-    item.appendChild(swatch);
-    item.appendChild(label);
-    calLegend.appendChild(item);
-  });
 }
 
 // A title becomes ranking-eligible once it's actually "done": a movie the

@@ -972,7 +972,7 @@ function renderCalendar(history, posterIndex) {
 
   const byDay = new Map();
   history.forEach((entry) => {
-    const d = new Date(entry.at);
+    const d = mentalDate(entry.at);
     const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     if (!byDay.has(key)) byDay.set(key, []);
     byDay.get(key).push(entry);

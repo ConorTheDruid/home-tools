@@ -61,6 +61,13 @@ with "Couldn't save that pick to the shared list".
   re-spins locally, excluding the just-rejected title so you can't land
   on the same thing twice in a row.
 - **Finished** logs it to history and deletes it from the wheel.
+- **Dropped** also deletes it from the wheel, but logs a `dropped`
+  event instead of `finished` — for a show you gave up on after a few
+  episodes. History shows it as "Dropped" (and doesn't count it as a
+  watch or put it on the calendar), and a dropped TV show becomes
+  eligible for Rankings just like a finished one, so you can grade it.
+  The `hometools_show_history.event` check constraint has to allow
+  `'dropped'` — see the SQL at the bottom of this file.
 - **Rankings tab**: once a title is "done" — a movie the moment it's
   been watched, a TV show once its series is marked finished — it shows
   up in Rankings (with its own TV/Movies toggle), sorted unrated-first,
@@ -96,4 +103,18 @@ CORS both expect it served over http(s). Use:
 
 ```
 python3 -m http.server 8000
+```
+
+## Schema change for Dropped
+
+Run once in the Supabase SQL editor (the original constraint only allowed
+`'watched'` and `'finished'`, so Dropped fails with "Couldn't save that to
+the shared list" until this is applied):
+
+```sql
+alter table hometools_show_history
+  drop constraint if exists hometools_show_history_event_check;
+alter table hometools_show_history
+  add constraint hometools_show_history_event_check
+  check (event in ('watched', 'finished', 'dropped'));
 ```

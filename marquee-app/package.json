@@ -2,7 +2,7 @@
   "name": "marquee-app",
   "private": true,
   "version": "0.1.0",
-  "description": "iOS wrapper for show-picker/ (Marquee Night), built with Capacitor.",
+  "description": "iOS app (Pick For Me) built from show-picker/ with Capacitor.",
   "type": "module",
   "scripts": {
     "build": "node scripts/build-web.mjs",
@@ -12,7 +12,7 @@
   "dependencies": {
     "@capacitor/core": "^8.5.2",
     "@capacitor/ios": "^8.5.2",
-    "@supabase/supabase-js": "2.116.0"
+    "@capacitor/preferences": "^8.0.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2"

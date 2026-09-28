@@ -10,8 +10,6 @@ function colorForTitle(title) {
   return COLORS[hash % COLORS.length];
 }
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 const RATING_ORDER = ["S+", "S", "S-", "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F"];
 const GRADE_LETTERS = ["S", "A", "B", "C", "D", "F"];
 
@@ -347,23 +345,18 @@ addForm.addEventListener("submit", async (e) => {
   const weight = isTv && items.length ? 2 * avgWeight : avgWeight;
 
   try {
-    const { data, error } = await sb
-      .from("hometools_shows")
-      .insert({
-        category: activeCategory,
-        title: value,
-        weight,
-        is_newcomer: isTv,
-        tmdb_id: match ? match.tmdbId : null,
-        poster_path: match ? match.posterPath : null,
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    upsertShow(data);
+    const row = await store.addShow({
+      category: activeCategory,
+      title: value,
+      weight,
+      is_newcomer: isTv,
+      tmdb_id: match ? match.tmdbId : null,
+      poster_path: match ? match.posterPath : null,
+    });
+    upsertShow(row);
     render();
   } catch (err) {
-    showConnError("Couldn't add that — is the Supabase table set up?", err);
+    showConnError("Couldn't add that", err);
   }
 });
 
@@ -392,30 +385,17 @@ function upsertHistory(row) {
 // Halves the winner's weight and splits what it lost equally across
 // everything else, so a show that just got picked is less likely to
 // come up again right away, and shows that haven't been picked in a
-// while gradually become more likely. Runs as one atomic database
-// function (defined on the Supabase project) so two people confirming picks at
-// the same moment can't interleave and corrupt the weights.
+// while gradually become more likely. The math itself lives in the
+// store (see store.confirmPick).
 async function applyStreakDecay(category, winnerId) {
-  const { error } = await sb.rpc("confirm_pick", { winner_id: winnerId });
-  if (error) throw error;
-  const { data, error: fetchError } = await sb
-    .from("hometools_shows")
-    .select("*")
-    .eq("category", category)
-    .order("created_at", { ascending: true });
-  if (fetchError) throw fetchError;
-  if (category === "movies") state.movies = data || [];
-  else state.tv = data || [];
+  const rows = await store.confirmPick(category, winnerId);
+  if (category === "movies") state.movies = rows;
+  else state.tv = rows;
 }
 
 async function logHistory(title, category, event, posterPath) {
-  const { data, error } = await sb
-    .from("hometools_show_history")
-    .insert({ title, category, event, poster_path: posterPath || null })
-    .select()
-    .single();
-  if (error) throw error;
-  upsertHistory(data);
+  const row = await store.addHistory({ title, category, event, poster_path: posterPath || null });
+  upsertHistory(row);
 }
 
 function render() {
@@ -457,10 +437,9 @@ function renderList() {
       removeShowLocal(item.id);
       render();
       try {
-        const { error } = await sb.from("hometools_shows").delete().eq("id", item.id);
-        if (error) throw error;
+        await store.deleteShow(item.id);
       } catch (err) {
-        showConnError("Couldn't remove that from the shared list", err);
+        showConnError("Couldn't remove that", err);
       }
     });
     li.appendChild(label);
@@ -523,14 +502,8 @@ function openArtPicker(item, li) {
         matches.forEach((match) => {
           results.appendChild(buildSearchResultRow(match, async (picked) => {
             try {
-              const { data, error } = await sb
-                .from("hometools_shows")
-                .update({ tmdb_id: picked.tmdbId, poster_path: picked.posterPath })
-                .eq("id", item.id)
-                .select()
-                .single();
-              if (error) throw error;
-              upsertShow(data);
+              const row = await store.updateShow(item.id, { tmdb_id: picked.tmdbId, poster_path: picked.posterPath });
+              upsertShow(row);
               render();
             } catch (err) {
               showConnError("Couldn't save that artwork", err);
@@ -818,7 +791,7 @@ function buildModalActions(item) {
       await applyStreakDecay(category, item.id);
       render();
     } catch (err) {
-      showConnError("Couldn't save that pick to the shared list", err);
+      showConnError("Couldn't save that pick", err);
     }
   }));
 
@@ -833,10 +806,9 @@ function buildModalActions(item) {
     render();
     try {
       await logHistory(item.title, category, "finished", item.poster_path);
-      const { error } = await sb.from("hometools_shows").delete().eq("id", item.id);
-      if (error) throw error;
+      await store.deleteShow(item.id);
     } catch (err) {
-      showConnError("Couldn't save that to the shared list", err);
+      showConnError("Couldn't save that", err);
     }
   }));
 }
@@ -1163,19 +1135,12 @@ async function setRating(category, title, rating) {
 
   try {
     if (rating) {
-      const { data, error } = await sb
-        .from("hometools_rankings")
-        .upsert({ category, title, rating, updated_at: new Date().toISOString() }, { onConflict: "category,title" })
-        .select()
-        .single();
-      if (error) throw error;
-      upsertRanking(data);
+      upsertRanking(await store.upsertRanking({ category, title, rating }));
     } else {
-      const { error } = await sb.from("hometools_rankings").delete().eq("category", category).eq("title", title);
-      if (error) throw error;
+      await store.deleteRanking(category, title);
     }
   } catch (err) {
-    showConnError("Couldn't save that rating to the shared list", err);
+    showConnError("Couldn't save that rating", err);
   }
 }
 
@@ -1274,55 +1239,47 @@ function formatDate(iso) {
 }
 
 function subscribeRealtime() {
-  sb.channel("hometools_shows_changes")
-    .on("postgres_changes", { event: "*", schema: "public", table: "hometools_shows" }, (payload) => {
-      if (payload.eventType === "DELETE") removeShowLocal(payload.old.id);
-      else upsertShow(payload.new);
+  store.subscribe({
+    onShow(row) {
+      upsertShow(row);
       render();
-    })
-    .on("postgres_changes", { event: "*", schema: "public", table: "hometools_show_history" }, (payload) => {
-      if (payload.eventType === "INSERT") upsertHistory(payload.new);
+    },
+    onShowDelete(id) {
+      removeShowLocal(id);
+      render();
+    },
+    onHistory(row) {
+      upsertHistory(row);
       if (!historyView.classList.contains("hidden")) renderHistory();
-    })
-    .on("postgres_changes", { event: "*", schema: "public", table: "hometools_rankings" }, (payload) => {
-      if (payload.eventType === "DELETE") {
-        state.rankings = state.rankings.filter((r) => r.id !== payload.old.id);
-      } else {
-        upsertRanking(payload.new);
-      }
+    },
+    onRanking(row) {
+      upsertRanking(row);
       if (!rankingsView.classList.contains("hidden")) renderRankings();
-    })
-    .subscribe((status) => {
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        showConnError("Live sync dropped — reload to catch up on the other person's changes");
-      }
-    });
+    },
+    onRankingDelete(id) {
+      state.rankings = state.rankings.filter((r) => r.id !== id);
+      if (!rankingsView.classList.contains("hidden")) renderRankings();
+    },
+    onDisconnect() {
+      showConnError("Live sync dropped — reload to catch up on the other person's changes");
+    },
+  });
 }
 
 async function init() {
   try {
-    const [
-      { data: shows, error: showsErr },
-      { data: history, error: historyErr },
-      { data: rankings, error: rankingsErr },
-    ] = await Promise.all([
-      sb.from("hometools_shows").select("*").order("created_at", { ascending: true }),
-      sb.from("hometools_show_history").select("*").order("at", { ascending: true }),
-      sb.from("hometools_rankings").select("*"),
-    ]);
-    if (showsErr) throw showsErr;
-    if (historyErr) throw historyErr;
-    if (rankingsErr) throw rankingsErr;
-    state.movies = (shows || []).filter((s) => s.category === "movies");
-    state.tv = (shows || []).filter((s) => s.category === "tv");
-    state.history = history || [];
-    state.rankings = rankings || [];
+    const { shows, history, rankings } = await store.loadAll();
+    state.movies = shows.filter((s) => s.category === "movies");
+    state.tv = shows.filter((s) => s.category === "tv");
+    state.history = history;
+    state.rankings = rankings;
   } catch (err) {
-    showConnError("Couldn't load the shared list — check the Supabase setup", err);
+    showConnError("Couldn't load your list", err);
   }
   render();
   subscribeRealtime();
-  loadVersionFooter();
+  if (store.isShared) loadVersionFooter();
+  else versionFooter.remove();
 }
 
 init();

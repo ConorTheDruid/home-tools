@@ -1,18 +1,18 @@
-# Marquee Night — iOS app
+# Pick For Me — iOS app
 
-Capacitor wrapper that bundles `../show-picker/` into a native iOS app.
-`show-picker/` is still the source of truth; `npm run build` copies it into
-`www/` (git-ignored) and swaps the CDN supabase-js for a local copy.
+Capacitor app built from `../show-picker/`. `npm run build` copies the
+web app into `www/` (git-ignored) and swaps its Supabase storage
+(`store-supabase.js`) for `src/store-local.js`, which keeps the watchlist,
+history, and rankings on the device via Capacitor Preferences — no
+account, no server. The web version on GitHub Pages is unaffected and
+still uses the shared Supabase list.
 
-**Status:** step one only — the current web app running unchanged inside
-an iOS shell. It still talks to the same shared Supabase tables as the
-web version, so **don't ship it to strangers yet**: accounts and
-per-household data come next.
+Bundle ID: `com.manypetstudios.pickforme` (in `capacitor.config.json`).
+It becomes permanent once an App Store Connect record uses it.
 
 ## First-time setup (Mac)
 
-Needs Node 22+ and the current Xcode from the App Store (open it once so
-it installs its components).
+Needs Node 22+ (`node -v`) and the current Xcode from the App Store.
 
 ```
 cd marquee-app
@@ -29,7 +29,7 @@ Capabilities → tick "Automatically manage signing" and pick your team,
 then plug in the phone (enable Developer Mode on it when prompted) and
 choose it as the run destination.
 
-## After changing show-picker/
+## After changing show-picker/ or src/
 
 ```
 npm run sync
@@ -37,8 +37,8 @@ npm run sync
 
 then ▶ again in Xcode.
 
-## Bundle ID
+## Testing in a browser
 
-`com.conorthedruid.marqueenight` in `capacitor.config.json`. It becomes
-permanent once an App Store Connect record uses it, so change it before
-then if you want something else.
+`npm run build && python3 -m http.server 8000 -d www` runs the app
+version in a desktop browser; it falls back to `localStorage` there
+instead of Capacitor Preferences.

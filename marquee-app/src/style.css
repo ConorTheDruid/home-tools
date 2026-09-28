@@ -32,17 +32,27 @@ body {
   font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
   display: flex;
   justify-content: center;
-  padding: 28px 16px 56px;
+  /* env(safe-area-inset-*) is the space iOS reserves for the notch /
+     Dynamic Island, rounded corners, and home indicator on this device
+     (0 where there's none), so content clears them on every model. */
+  padding:
+    calc(28px + env(safe-area-inset-top))
+    calc(16px + env(safe-area-inset-right))
+    calc(56px + env(safe-area-inset-bottom))
+    calc(16px + env(safe-area-inset-left));
 }
 
+/* Also fills the status-bar area, so content scrolled up slides under an
+   opaque strip instead of showing behind the clock; the sprocket holes
+   stay a single row along its bottom edge. */
 .reel-strip {
   position: fixed;
   top: 0; left: 0; right: 0;
-  height: 10px;
+  height: calc(10px + env(safe-area-inset-top));
   background-image: radial-gradient(circle, var(--bg) 0 3px, transparent 3.3px);
   background-size: 22px 10px;
-  background-position: 11px 0;
-  opacity: 0.9;
+  background-position: 11px 100%;
+  background-repeat: repeat-x;
   background-color: #0f0a14;
   z-index: 5;
 }

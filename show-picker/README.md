@@ -4,6 +4,14 @@ Spinner wheel for picking a movie or TV show, backed by Supabase so you and
 whoever else has the link see the same list, weights, and history live —
 no per-browser localStorage.
 
+## Storage
+
+`app.js` never talks to Supabase directly — it goes through the `store`
+object defined in `store-supabase.js` (load, add/update/delete show,
+confirm pick, log history, set/clear rating, subscribe to live changes).
+The iOS app in `../marquee-app/` swaps that file for an on-device store
+with the same interface, so any new data operation needs adding to both.
+
 ## Supabase setup
 
 The production Supabase project already has the schema this app expects:
@@ -44,7 +52,7 @@ History entries (Confirm/Finished) also keep their own copy of the
 poster so past picks keep their art even after a show is deleted from
 the wheel, via a `poster_path` column on `hometools_show_history` (also
 already present in production) — without it, Confirm and Finished fail
-with "Couldn't save that pick to the shared list".
+with "Couldn't save that pick".
 
 ## How the wheel works
 
@@ -108,8 +116,8 @@ python3 -m http.server 8000
 ## Schema change for Dropped
 
 Run once in the Supabase SQL editor (the original constraint only allowed
-`'watched'` and `'finished'`, so Dropped fails with "Couldn't save that to
-the shared list" until this is applied):
+`'watched'` and `'finished'`, so Dropped fails with "Couldn't save that"
+until this is applied):
 
 ```sql
 alter table hometools_show_history

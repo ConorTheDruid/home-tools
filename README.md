@@ -5,9 +5,6 @@ per app, plus a landing page linking them together.
 
 - **`show-picker/`** — Marquee Night: a spinner wheel for picking tonight's
   movie or TV show.
-- **`marquee-app/`** — Pick For Me: the iOS app version of the show
-  picker, forked from `show-picker/` and developed separately; see its
-  README.
 - **`calorie-tracker/`** — Daily Values: a nutrition dashboard for logging
   food and seeing daily totals.
 

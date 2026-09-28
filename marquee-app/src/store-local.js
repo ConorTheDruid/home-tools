@@ -56,8 +56,6 @@ function findShow(id) {
 }
 
 const store = {
-  isShared: false,
-
   async loadAll() {
     const json = await persistence.read();
     if (json) {

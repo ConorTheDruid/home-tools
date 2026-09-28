@@ -9,8 +9,9 @@ no per-browser localStorage.
 `app.js` never talks to Supabase directly — it goes through the `store`
 object defined in `store-supabase.js` (load, add/update/delete show,
 confirm pick, log history, set/clear rating, subscribe to live changes).
-The iOS app in `../marquee-app/` swaps that file for an on-device store
-with the same interface, so any new data operation needs adding to both.
+The iOS app in `../marquee-app/` started as a copy of this app but is
+now its own codebase (with an on-device store) — changes here don't
+carry over to it, or vice versa.
 
 ## Supabase setup
 

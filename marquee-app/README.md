@@ -1,11 +1,15 @@
 # Pick For Me — iOS app
 
-Capacitor app built from `../show-picker/`. `npm run build` copies the
-web app into `www/` (git-ignored) and swaps its Supabase storage
-(`store-supabase.js`) for `src/store-local.js`, which keeps the watchlist,
-history, and rankings on the device via Capacitor Preferences — no
-account, no server. The web version on GitHub Pages is unaffected and
-still uses the shared Supabase list.
+Capacitor app whose web code lives in `src/`. It started as a copy of
+`../show-picker/` (the household web version on GitHub Pages) but is its
+own codebase now: design and feature changes here don't touch the web
+version, and changes there don't carry over here — port them by hand if
+both should have them.
+
+Data (watchlist, history, rankings) stays on the device via
+`src/store-local.js` and Capacitor Preferences — no account, no server.
+`npm run build` just copies `src/` into `www/` (git-ignored) for
+Capacitor to bundle.
 
 Bundle ID: `com.manypetstudios.pickforme` (in `capacitor.config.json`).
 It becomes permanent once an App Store Connect record uses it.
@@ -29,7 +33,7 @@ Capabilities → tick "Automatically manage signing" and pick your team,
 then plug in the phone (enable Developer Mode on it when prompted) and
 choose it as the run destination.
 
-## After changing show-picker/ or src/
+## After changing src/
 
 ```
 npm run sync

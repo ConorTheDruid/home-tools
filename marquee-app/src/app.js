@@ -705,6 +705,22 @@ function weightedPick(items, excludeTitle) {
   return eligible[eligible.length - 1];
 }
 
+// Native haptics via Capacitor's Haptics plugin. In a plain browser the
+// plugin isn't there, so these quietly do nothing.
+const haptics = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins.Haptics : null;
+function haptic(method, options) {
+  haptics?.[method]?.(options)?.catch?.(() => {});
+}
+
+// Index of the slice currently under the pointer. The wheel is drawn
+// rotated by angleDeg, so the pointer (270°, top of the wheel) sits at
+// 270° − angleDeg in the wheel's own frame.
+function sliceAtPointer(layout, angleDeg) {
+  const pointerRad = ((((270 - angleDeg) % 360) + 360) % 360) * (Math.PI / 180);
+  const idx = layout.findIndex((slice) => pointerRad >= slice.start && pointerRad < slice.end);
+  return idx >= 0 ? idx : layout.length - 1;
+}
+
 function spin(excludeTitle) {
   const items = currentItems();
   if (items.length === 0 || spinning) return;
@@ -725,6 +741,13 @@ function spin(excludeTitle) {
   const duration = 4200;
   const startTime = performance.now();
 
+  // A light tick each time a new show passes the pointer — rapid while
+  // the wheel is flying, spacing out as it slows. The selection-style
+  // haptic is the same one iOS uses for picker wheels. At full speed
+  // several slices can pass in one frame; that's still one tick.
+  let lastSlice = sliceAtPointer(layout, startAngle);
+  haptic("selectionStart");
+
   function frame(now) {
     const elapsed = now - startTime;
     const t = Math.min(elapsed / duration, 1);
@@ -732,9 +755,17 @@ function spin(excludeTitle) {
     currentAngle = startAngle + (targetAngle - startAngle) * eased;
     drawWheel(currentAngle);
 
+    const slice = sliceAtPointer(layout, currentAngle);
+    if (slice !== lastSlice) {
+      lastSlice = slice;
+      haptic("selectionChanged");
+    }
+
     if (t < 1) {
       requestAnimationFrame(frame);
     } else {
+      haptic("selectionEnd");
+      haptic("impact", { style: "MEDIUM" });
       currentAngle = targetAngle % 360;
       spinning = false;
       spinBtn.disabled = false;

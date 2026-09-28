@@ -802,15 +802,28 @@ function buildModalActions(item) {
 
   modalActions.appendChild(makeButton("🏁 Finished — remove it", "btn-finished", async () => {
     closeModal();
-    removeShowLocal(item.id);
-    render();
-    try {
-      await logHistory(item.title, category, "finished", item.poster_path);
-      await store.deleteShow(item.id);
-    } catch (err) {
-      showConnError("Couldn't save that", err);
-    }
+    await retireShow(item, category, "finished");
   }));
+
+  // Same removal as Finished, but logged as "dropped" so history can tell
+  // "we saw it through" apart from "we gave up on it".
+  modalActions.appendChild(makeButton("🗑 Dropped — not continuing it", "btn-dropped", async () => {
+    closeModal();
+    await retireShow(item, category, "dropped");
+  }));
+}
+
+// Logs a terminal history event ("finished" or "dropped") and deletes the
+// show from the wheel.
+async function retireShow(item, category, event) {
+  removeShowLocal(item.id);
+  render();
+  try {
+    await logHistory(item.title, category, event, item.poster_path);
+    await store.deleteShow(item.id);
+  } catch (err) {
+    showConnError("Couldn't save that", err);
+  }
 }
 
 function makeButton(label, className, onClick) {
@@ -905,8 +918,9 @@ function renderTimeline(history, posterIndex) {
     info.appendChild(meta);
 
     const badge = document.createElement("span");
-    badge.className = "timeline-badge" + (entry.event === "finished" ? " finished" : "");
-    badge.textContent = entry.event === "finished" ? "Finished" : "Watched";
+    const badgeLabels = { finished: "Finished", dropped: "Dropped" };
+    badge.className = "timeline-badge" + (badgeLabels[entry.event] ? ` ${entry.event}` : "");
+    badge.textContent = badgeLabels[entry.event] || "Watched";
 
     li.appendChild(swatch);
     li.appendChild(info);
@@ -943,6 +957,7 @@ function renderCalendar(history, posterIndex) {
 
   const byDay = new Map();
   history.forEach((entry) => {
+    if (entry.event === "dropped") return; // giving up on a show isn't a night we watched it
     const d = mentalDate(entry.at);
     const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     if (!byDay.has(key)) byDay.set(key, []);
@@ -1015,13 +1030,14 @@ function renderCalendar(history, posterIndex) {
 // A title becomes ranking-eligible once it's actually "done": a movie the
 // moment it's been watched (you don't rewatch a movie in rotation, so
 // watching it is finishing it), a TV show only once its series is marked
-// finished (a "watched" event just means an episode aired, not that
-// you're done with the show).
+// finished or dropped (a "watched" event just means an episode aired, not
+// that you're done with the show — and a dropped show is usually exactly
+// the one you want to put a low grade on).
 function rankingEligibleTitles(category) {
   const latestByTitle = new Map();
   state.history.forEach((h) => {
     if (h.category !== category) return;
-    if (category === "tv" && h.event !== "finished") return;
+    if (category === "tv" && h.event !== "finished" && h.event !== "dropped") return;
     const at = new Date(h.at).getTime();
     if (!latestByTitle.has(h.title) || at > latestByTitle.get(h.title)) {
       latestByTitle.set(h.title, at);
@@ -1188,8 +1204,12 @@ function renderHistoryCard(title, entries, stillInRotation, posterPath) {
 
   const status = document.createElement("span");
   const finished = entries.some((e) => e.event === "finished");
+  const dropped = entries.some((e) => e.event === "dropped");
   let statusText, statusClass;
-  if (finished) {
+  if (dropped && !stillInRotation) {
+    statusText = "Dropped";
+    statusClass = " dropped";
+  } else if (finished) {
     statusText = "Finished";
     statusClass = " finished";
   } else if (stillInRotation) {
@@ -1204,7 +1224,8 @@ function renderHistoryCard(title, entries, stillInRotation, posterPath) {
 
   const count = document.createElement("span");
   count.className = "history-count";
-  count.textContent = entries.length === 1 ? "Watched once" : `Watched ${entries.length} times`;
+  const watchCount = entries.filter((e) => e.event !== "dropped").length;
+  count.textContent = watchCount === 1 ? "Watched once" : `Watched ${watchCount} times`;
 
   meta.appendChild(status);
   meta.appendChild(count);
@@ -1213,7 +1234,7 @@ function renderHistoryCard(title, entries, stillInRotation, posterPath) {
   dates.className = "history-dates";
   entries.forEach((e) => {
     const li = document.createElement("li");
-    li.textContent = formatDate(e.at);
+    li.textContent = e.event === "dropped" ? `${formatDate(e.at)} · dropped` : formatDate(e.at);
     dates.appendChild(li);
   });
 
